@@ -1,0 +1,34 @@
+# ───── Build output (make) ─────
+build/
+*.o
+*.d
+*.elf
+*.bin
+*.hex
+*.map
+*.list
+*.lst
+*.su
+
+# ───── STM32CubeIDE (nếu import vào IDE) ─────
+Debug/
+Release/
+.settings/
+.cproject
+.project
+*.launch
+
+# ───── CubeMX ─────
+# Giữ lại nguồn cấu hình: leafmuncher-plus.ioc, .mxproject
+*.ioc.bak
+*~
+
+# ───── Claude Code / agent (cá nhân) ─────
+.claude/settings.local.json
+
+# ───── Editor / OS ─────
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store

@@ -1,0 +1,9 @@
+# Đánh dấu thư viện hãng (ST HAL/CMSIS, FreeRTOS, USB Host) là "vendored":
+# GitHub Linguist sẽ KHÔNG tính vào thống kê ngôn ngữ và gập lại trong diff.
+Drivers/**          linguist-vendored
+Middlewares/**      linguist-vendored
+USB_HOST/**         linguist-vendored
+startup_stm32f429xx.s linguist-vendored
+
+# Linker script + assembly là sinh tự động
+*.ld                linguist-generated
