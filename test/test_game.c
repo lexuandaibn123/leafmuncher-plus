@@ -243,8 +243,9 @@ int main(void) {
     GameState g;
     game_init(&g, 0x5EED01u);
     game_start(&g);
-    /* Ăn dọc hàng giữa từ c=11..18: mỗi lần đặt lá ngay trước đầu rồi bước. */
-    for (int c = 11; c <= 18; c++) {
+    /* Ăn dọc hàng giữa từ c=11..15 (5 lá < target 6 → vẫn PLAYING): mỗi lần đặt lá
+     * ngay trước đầu rồi bước, kiểm lá mới sinh không đè thân. */
+    for (int c = 11; c <= 15; c++) {
       Cell h = worm_seg(&g, 0);
       g.leaf_normal.type = LEAF_NORMAL;
       g.leaf_normal.pos.c = (int8_t)c; g.leaf_normal.pos.r = h.r;
@@ -261,8 +262,9 @@ int main(void) {
         assert(!(s.c == lc && s.r == lr));
       }
     }
-    assert(g.worm.len == (uint16_t)(LEN_START + 8));
-    assert(g.score == (uint32_t)(8 * SCORE_LEAF));
+    assert(g.worm.len == (uint16_t)(LEN_START + 5));
+    assert(g.score == (uint32_t)(5 * SCORE_LEAF));
+    assert(g.mode == ST_PLAYING);
   }
 
   /* ---- M3: game_input_ui tối thiểu — GAME_OVER + nút chính → chơi lại ---- */
@@ -276,7 +278,120 @@ int main(void) {
     assert(g.score == 0u && g.worm.len == LEN_START);   /* reset ván mới */
   }
 
-  printf("test_game: all assertions passed (T019 init/start/queries + T028-T031 core); "
-         "sizeof(GameState)=%lu\n", (unsigned long)sizeof(GameState));
+  /* ================= US2 / M4 — chướng ngại & nhiều màn (T040) ================= */
+
+  /* ---- T040a: va chướng ngại → GAME_OVER (màn 1 có thanh ngang hàng 3) ---- */
+  {
+    GameState g;
+    game_init(&g, 11u);
+    game_start(&g);
+    g.level_idx = 1;                 /* màn 1: chướng ngại hàng 3 & 9, cột 5..14 */
+    g.leaf_normal.type = LEAF_NORMAL;
+    g.leaf_normal.pos.c = 19; g.leaf_normal.pos.r = 12;   /* lá xa, ngoài lối đi */
+    /* Sâu thẳng đứng dưới thanh: head (7,5) hướng UP, thân (7,6),(7,7). */
+    Worm *w = &g.worm;
+    w->head_idx = 0u; w->len = LEN_START; w->dir = DIR_UP; w->next_dir = DIR_UP;
+    w->body[0] = (Cell){ 7, 5 };
+    w->body[1] = (Cell){ 7, 6 };
+    w->body[2] = (Cell){ 7, 7 };
+    rebuild_occupied(&g);            /* occupied tạm (chưa chướng ngại) cho bước 1 */
+
+    /* Bước 1: UP (7,5)→(7,4) ô trống → di chuyển; grid_rebuild nạp chướng ngại màn 1. */
+    GameEvents e1 = game_step(&g, (InputEvent){ IN_NONE, DIR_UP }, g.step_ms);
+    assert(e1 & EV_MOVED);
+    assert(!(e1 & EV_GAME_OVER));
+    assert(g.occupied[3][7] == 1);   /* chướng ngại (7,3) đã nạp vào occupied */
+
+    /* Bước 2: UP (7,4)→(7,3) = chướng ngại → GAME_OVER. */
+    GameEvents e2 = game_step(&g, (InputEvent){ IN_NONE, DIR_UP }, g.step_ms);
+    assert(e2 & EV_GAME_OVER);
+    assert(g.mode == ST_GAME_OVER);
+  }
+
+  /* ---- T040b: đạt target → LEVEL_COMPLETE; IN_SELECT → lên màn kế (tăng tốc, giữ điểm) ---- */
+  {
+    GameState g;
+    game_init(&g, 22u);
+    game_start(&g);                  /* màn 0, target 6 */
+    /* Ăn 6 lá dọc hàng giữa (c=11..16) → đạt target. */
+    for (int c = 11; c <= 16; c++) {
+      Cell h = worm_seg(&g, 0);
+      g.leaf_normal.type = LEAF_NORMAL;
+      g.leaf_normal.pos.c = (int8_t)c; g.leaf_normal.pos.r = h.r;
+      g.leaf_normal.life_ms = -1;
+      GameEvents e = game_step(&g, (InputEvent){ IN_NONE, DIR_RIGHT }, g.step_ms);
+      assert(e & EV_ATE_NORMAL);
+      if (c < 16) assert(g.mode == ST_PLAYING);
+    }
+    assert(g.leaves_eaten == 6);
+    assert(g.mode == ST_LEVEL_COMPLETE);
+    assert(g.score == 6 * SCORE_LEAF);
+
+    uint32_t kept = g.score;
+    game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_UP });
+    assert(g.mode == ST_PLAYING);
+    assert(g.level_idx == 1);
+    assert(g.step_ms == STEP_MS[1]);          /* nhanh hơn màn 0 */
+    assert(g.step_ms < STEP_MS[0]);
+    assert(g.score == kept);                  /* giữ điểm */
+    assert(g.leaves_eaten == 0);              /* đếm lại từ đầu màn */
+    assert(g.worm.len == LEN_START);          /* sâu reset */
+    assert(g.leaf_normal.type == LEAF_NORMAL);/* lá mới đã sinh */
+  }
+
+  /* ---- T040c: màn cuối đạt target → WIN; IN_SELECT → chơi lại từ màn 0 ---- */
+  {
+    GameState g;
+    game_init(&g, 33u);
+    game_start(&g);
+    g.level_idx = LEVELS - 1;        /* màn cuối, target 14 */
+    g.leaves_eaten = 13;             /* coi như đã ăn 13 lá trước đó */
+    Cell h = worm_seg(&g, 0);
+    g.leaf_normal.type = LEAF_NORMAL;
+    g.leaf_normal.pos.c = (int8_t)(h.c + 1); g.leaf_normal.pos.r = h.r;
+    g.leaf_normal.life_ms = -1;
+    GameEvents e = game_step(&g, (InputEvent){ IN_NONE, DIR_RIGHT }, g.step_ms);
+    assert(e & EV_ATE_NORMAL);
+    assert(e & EV_WIN);
+    assert(g.mode == ST_WIN);
+    assert(g.leaves_eaten == 14);
+
+    game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_UP });
+    assert(g.mode == ST_PLAYING);
+    assert(g.level_idx == 0 && g.score == 0);
+  }
+
+  /* ---- T040d: sân đầy (không còn ô sinh lá) → thắng màn (LEVEL_COMPLETE ở màn 0) ---- */
+  {
+    GameState g;
+    game_init(&g, 44u);
+    game_start(&g);                  /* màn 0 (không chướng ngại) */
+    Worm *w = &g.worm;
+    /* Phủ kín lưới TRỪ ô (0,0) (để lá). head = ô đầu tiên thêm = (1,0), hướng LEFT. */
+    g.leaf_normal.type = LEAF_NORMAL;
+    g.leaf_normal.pos.c = 0; g.leaf_normal.pos.r = 0;
+    g.leaf_normal.life_ms = -1;
+    uint16_t n = 0;
+    for (int r = 0; r < ROWS; r++) {
+      for (int c = 0; c < COLS; c++) {
+        if (c == 0 && r == 0) continue;          /* chừa ô lá */
+        w->body[n].c = (int8_t)c; w->body[n].r = (int8_t)r;
+        n++;
+      }
+    }
+    w->head_idx = 0u; w->len = n; w->dir = DIR_LEFT; w->next_dir = DIR_LEFT;
+    assert(n == GRID_CELLS - 1);                 /* 259 đốt */
+    rebuild_occupied(&g);
+
+    /* head (1,0) đi LEFT vào (0,0) = lá cuối → ăn, sân đầy → không còn ô sinh lá. */
+    GameEvents e = game_step(&g, (InputEvent){ IN_NONE, DIR_LEFT }, g.step_ms);
+    assert(e & EV_ATE_NORMAL);
+    assert(e & EV_LEVEL_DONE);
+    assert(g.mode == ST_LEVEL_COMPLETE);
+    assert(g.leaf_normal.type == LEAF_NONE);     /* không sinh được lá mới */
+  }
+
+  printf("test_game: all assertions passed (T019 init/start + T028-T031 core + "
+         "T040 obstacles/levels); sizeof(GameState)=%lu\n", (unsigned long)sizeof(GameState));
   return 0;
 }
