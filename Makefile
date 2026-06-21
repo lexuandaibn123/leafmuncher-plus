@@ -111,6 +111,7 @@ Core/Src/syscalls.c \
 Core/Src/dma.c \
 Core/Src/rng.c \
 Core/Src/gfx.c \
+Core/Src/font8x16.c \
 Core/Src/input.c \
 Core/Src/game.c \
 Core/Src/levels.c \

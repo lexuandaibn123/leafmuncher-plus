@@ -57,12 +57,18 @@ void render_force_full(const GameState* gs);             // vẽ lại toàn khu
 
 - **DMA2D R2M (`gfx_clear`/`gfx_fill_rect`)**: màu nạp vào OCOLR phải là **ARGB8888**, không phải RGB565
   → dùng helper `argb_from_565()`. Truyền thẳng RGB565 sẽ xoay/lệch kênh màu.
-- **DMA2D M2M (`gfx_blit`/`gfx_text`)** ở T010: input color mode để RGB565 nếu glyph/sprite là RGB565.
+- **`gfx_text`/`gfx_blit`/`gfx_blend_rect` vẽ bằng CPU (T010/T012)**: DMA2D M2M/M2M_BLEND **không xoay**
+  được, mà glyph/sprite cần xoay 90° như mọi thứ khác → vẽ từng pixel có xoay (`px=ly, py=SCREEN_W−1−lx`,
+  giống `gfx_fill_rect`). Văn bản HUD/overlay nhỏ nên rẻ. Font 8×16 sinh từ `tools/genfont.c`.
+- **`gfx_blend_rect` blend hằng-màu** ⇒ CPU (DMA2D M2M_BLEND đòi buffer foreground thật). Overlay PAUSED
+  **tĩnh** ⇒ vẽ **một lần** lúc vào PAUSED, KHÔNG mỗi khung (blend toàn màn ~77k px/khung làm chậm vòng
+  lặp → input trễ).
 - **Panel ILI9341** phải có `0xB0=0xC2` (RGB Interface Signal Control) trong init, nếu không → sọc ngang.
 - **Xoay 90°**: panel native portrait 240×320; `gfx` nhận toạ độ landscape 320×240 và map sang
   (px=ly, py=SCREEN_W−1−lx). Hình chữ nhật landscape → vẫn là chữ nhật trên framebuffer (1 lệnh DMA2D).
-- **`gfx_present`**: hiện reload địa chỉ layer tại vblank (`HAL_LTDC_Reload` VERTICAL_BLANKING) — còn xé
-  nhẹ; T011 chuyển sang swap trong **ngắt line LTDC** để hết hẳn.
+- **`gfx_present` (T011 — HẾT XÉ)**: đặt cờ swap rồi chờ tới VSYNC; `HAL_LTDC_LineEventCallback` (qua
+  `LTDC_IRQHandler` sẵn có) áp địa chỉ buffer mới bằng reload tức thời tại **dòng 323** (vùng blank dọc,
+  active = dòng 4..323) rồi tái vũ trang ngắt. Buffer cũ chỉ được vẽ lại sau khi swap xong → không xé.
 
 ## Bất biến render
 
