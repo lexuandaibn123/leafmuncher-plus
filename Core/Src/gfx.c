@@ -95,39 +95,55 @@ static void lcd_cmd_n(uint8_t cmd, const uint8_t *args, uint8_t n) {
   for (uint8_t i = 0; i < n; i++) lcd_data(args[i]);
 }
 
+/* Chuỗi init KHỚP CHÍNH XÁC thư viện MaJerle (known-good cho F429-DISCO LTDC/RGB).
+ * Then chốt: 0xB0=0xC2 (RGB Interface Signal Control) đưa panel vào chế độ RGB —
+ * thiếu nó panel không chốt đúng luồng RGB từ LTDC → sọc ngang. */
 static void panel_init(void) {
   HAL_GPIO_WritePin(CSX_GPIO_Port, CSX_Pin, GPIO_PIN_SET);   /* CS nghỉ */
 
-  lcd_cmd(0x01);            /* SWRESET — reset mềm */
-  HAL_Delay(50);
-
-  lcd_cmd_n(0xCB, (const uint8_t[]){0x39,0x2C,0x00,0x34,0x02}, 5);  /* Power control A */
+  lcd_cmd_n(0xCA, (const uint8_t[]){0xC3,0x08,0x50}, 3);
   lcd_cmd_n(0xCF, (const uint8_t[]){0x00,0xC1,0x30}, 3);            /* Power control B */
-  lcd_cmd_n(0xE8, (const uint8_t[]){0x85,0x00,0x78}, 3);            /* Driver timing A */
-  lcd_cmd_n(0xEA, (const uint8_t[]){0x00,0x00}, 2);                 /* Driver timing B */
   lcd_cmd_n(0xED, (const uint8_t[]){0x64,0x03,0x12,0x81}, 4);       /* Power on seq */
+  lcd_cmd_n(0xE8, (const uint8_t[]){0x85,0x00,0x78}, 3);            /* Driver timing A */
+  lcd_cmd_n(0xCB, (const uint8_t[]){0x39,0x2C,0x00,0x34,0x02}, 5);  /* Power control A */
   lcd_cmd_n(0xF7, (const uint8_t[]){0x20}, 1);                      /* Pump ratio */
-  lcd_cmd_n(0xC0, (const uint8_t[]){0x23}, 1);                      /* Power control 1 */
+  lcd_cmd_n(0xEA, (const uint8_t[]){0x00,0x00}, 2);                 /* Driver timing B */
+  lcd_cmd_n(0xB1, (const uint8_t[]){0x00,0x1B}, 2);                 /* Frame rate */
+  lcd_cmd_n(0xB6, (const uint8_t[]){0x0A,0xA2}, 2);                 /* Display function ctrl */
+  lcd_cmd_n(0xC0, (const uint8_t[]){0x10}, 1);                      /* Power control 1 */
   lcd_cmd_n(0xC1, (const uint8_t[]){0x10}, 1);                      /* Power control 2 */
-  lcd_cmd_n(0xC5, (const uint8_t[]){0x3E,0x28}, 2);                 /* VCOM 1 */
-  lcd_cmd_n(0xC7, (const uint8_t[]){0x86}, 1);                      /* VCOM 2 */
-  lcd_cmd_n(0x36, (const uint8_t[]){0x48}, 1);                      /* MADCTL (BGR, mặc định portrait) */
-  lcd_cmd_n(0x3A, (const uint8_t[]){0x55}, 1);                      /* COLMOD = RGB565 16-bit */
-  lcd_cmd_n(0xB1, (const uint8_t[]){0x00,0x18}, 2);                 /* Frame rate */
-  lcd_cmd_n(0xB6, (const uint8_t[]){0x08,0x82,0x27}, 3);            /* Display function ctrl */
+  lcd_cmd_n(0xC5, (const uint8_t[]){0x45,0x15}, 2);                 /* VCOM 1 */
+  lcd_cmd_n(0xC7, (const uint8_t[]){0x90}, 1);                      /* VCOM 2 */
+  lcd_cmd_n(0x36, (const uint8_t[]){0xC8}, 1);                      /* MADCTL (đúng MaJerle, BGR) */
   lcd_cmd_n(0xF2, (const uint8_t[]){0x00}, 1);                      /* 3Gamma disable */
+  lcd_cmd_n(0xB0, (const uint8_t[]){0xC2}, 1);                      /* ★ RGB Interface Signal Control */
+  lcd_cmd_n(0xB6, (const uint8_t[]){0x0A,0xA7,0x27,0x04}, 4);       /* Display function ctrl (RGB) */
+  lcd_cmd_n(0x2A, (const uint8_t[]){0x00,0x00,0x00,0xEF}, 4);       /* Column 0..239 */
+  lcd_cmd_n(0x2B, (const uint8_t[]){0x00,0x00,0x01,0x3F}, 4);       /* Page 0..319 */
+  lcd_cmd_n(0xF6, (const uint8_t[]){0x01,0x00,0x06}, 3);            /* Interface control (RGB) */
+  lcd_cmd(0x2C);                                                    /* Memory write (mở luồng RGB) */
   lcd_cmd_n(0x26, (const uint8_t[]){0x01}, 1);                      /* Gamma curve */
-  lcd_cmd_n(0xE0, (const uint8_t[]){0x0F,0x31,0x2B,0x0C,0x0E,0x08,0x4E,0xF1,
-                                    0x37,0x07,0x10,0x03,0x0E,0x09,0x00}, 15); /* +Gamma */
-  lcd_cmd_n(0xE1, (const uint8_t[]){0x00,0x0E,0x14,0x03,0x11,0x07,0x31,0xC1,
-                                    0x48,0x08,0x0F,0x0C,0x31,0x36,0x0F}, 15); /* -Gamma */
-  /* Interface control: nhận dữ liệu ảnh từ RGB interface (LTDC) thay vì GRAM nội. */
-  lcd_cmd_n(0xF6, (const uint8_t[]){0x01,0x00,0x06}, 3);
+  lcd_cmd_n(0xE0, (const uint8_t[]){0x0F,0x29,0x24,0x0C,0x0E,0x09,0x4E,0x78,
+                                    0x3C,0x09,0x13,0x05,0x17,0x11,0x00}, 15); /* +Gamma */
+  lcd_cmd_n(0xE1, (const uint8_t[]){0x00,0x16,0x1B,0x04,0x11,0x07,0x31,0x33,
+                                    0x42,0x05,0x0C,0x0A,0x28,0x2F,0x0F}, 15); /* -Gamma */
 
   lcd_cmd(0x11);           /* SLPOUT — thoát ngủ */
   HAL_Delay(120);
   lcd_cmd(0x29);           /* DISPON — bật hiển thị */
   HAL_Delay(10);
+}
+
+/* ⚠️ DMA2D R2M: thanh ghi màu OCOLR phải ở định dạng ARGB8888 (DMA2D tự chuyển
+ * sang RGB565 khi ghi ra framebuffer). Truyền thẳng RGB565 → lệch kênh màu. */
+static uint32_t argb_from_565(uint16_t c) {
+  uint32_t r = (uint32_t)((c >> 11) & 0x1Fu);
+  uint32_t g = (uint32_t)((c >> 5)  & 0x3Fu);
+  uint32_t b = (uint32_t)( c        & 0x1Fu);
+  r = (r << 3) | (r >> 2);   /* 5→8 bit */
+  g = (g << 2) | (g >> 4);   /* 6→8 bit */
+  b = (b << 3) | (b >> 2);   /* 5→8 bit */
+  return 0xFF000000u | (r << 16) | (g << 8) | b;
 }
 
 /* ───────────────────────── DMA2D Register-to-Memory fill ─────────────────
@@ -138,7 +154,7 @@ static void dma2d_fill(uint32_t dst, uint16_t color, uint32_t w, uint32_t h, uin
   hdma2d.Init.ColorMode    = DMA2D_OUTPUT_RGB565;
   hdma2d.Init.OutputOffset = line_off;
   HAL_DMA2D_Init(&hdma2d);
-  HAL_DMA2D_Start(&hdma2d, (uint32_t)color, dst, w, h);
+  HAL_DMA2D_Start(&hdma2d, argb_from_565(color), dst, w, h);
   HAL_DMA2D_PollForTransfer(&hdma2d, 100);
 }
 
