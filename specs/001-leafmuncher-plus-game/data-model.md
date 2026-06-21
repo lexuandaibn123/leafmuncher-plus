@@ -16,7 +16,10 @@ typedef struct { int8_t c, r; } Cell;        // toạ độ lưới: c∈[0,19],
 typedef enum {
   ST_MENU, ST_PLAYING, ST_PAUSED,
   ST_GAME_OVER, ST_LEVEL_COMPLETE, ST_WIN
-} GameMode;
+} GameMode;                                   // trạng thái máy trạng thái (FSM)
+
+typedef enum { MODE_LEVEL, MODE_ENDLESS } PlayMode;   // chế độ chơi (US5)
+typedef enum { THEME_FOREST, THEME_DESERT, THEME_COUNT } ThemeId;  // theme (US6, xem contracts/theme.md)
 
 typedef enum {
   LEAF_NONE, LEAF_NORMAL, LEAF_GOLD, LEAF_POISON, LEAF_POWERUP
@@ -80,7 +83,8 @@ Struct trung tâm mà `game_step` thao tác; cũng là snapshot cho render.
 
 | Trường | Kiểu | Ý nghĩa |
 |---|---|---|
-| `mode` | `GameMode` | trạng thái máy trạng thái |
+| `mode` | `GameMode` | trạng thái máy trạng thái (FSM) |
+| `play_mode` | `PlayMode` | chế độ chơi: `MODE_LEVEL` / `MODE_ENDLESS` (US5) |
 | `worm` | `Worm` | con sâu |
 | `leaf_normal`, `leaf_gold`, `leaf_poison`, `leaf_pu` | `Leaf` | các lá hiện có (`type==LEAF_NONE` nếu trống) |
 | `power` | power-up đang hiệu lực (§2.3) | |
@@ -91,6 +95,39 @@ Struct trung tâm mà `game_step` thao tác; cũng là snapshot cho render.
 | `step_ms` | `uint16_t` | chu kỳ tick hiệu dụng (sau hệ số power-up) |
 | `menu_sel` | `uint8_t` | lựa chọn đang sáng ở MENU |
 | `rng` | `uint32_t` | state PRNG (xorshift32) |
+
+### 2.6 Theme (ngoài logic thuần — `theme.c`)
+Dữ liệu hiển thị `const`, render đọc. KHÔNG nằm trong `GameState` (không ảnh hưởng logic). Xem
+[contracts/theme.md](contracts/theme.md). Theme đang chọn lưu ở `store` (`theme_id`), nạp vào biến hiển thị
+toàn cục do `render`/`tasks` giữ.
+
+### 2.7 Persistent Store (ngoài logic thuần — `store.c`)
+Struct lưu Flash, giữ qua tắt nguồn (FR-027). Xem [contracts/store.md](contracts/store.md).
+
+| Trường | Kiểu | Ý nghĩa |
+|---|---|---|
+| `magic` | `uint32_t` | nhận diện dữ liệu hợp lệ |
+| `version` | `uint16_t` | schema version |
+| `theme_id` | `uint16_t` | `ThemeId` đã chọn |
+| `endless_high` | `uint32_t` | điểm cao chế độ Vô tận |
+| `crc` | `uint32_t` | checksum |
+
+> `score` cao nhất của Vô tận **không** nằm trong `GameState` (state ván hiện tại); nó thuộc `store`.
+> `tasks`/menu đọc `store` rồi truyền `theme_id` cho render và so `score` cuối ván để cập nhật `endless_high`.
+
+### 2.8 Saved Game (ô lưu ván — `store.c`, FR-029..032)
+Snapshot để **tiếp tục ván sau** (kể cả sau tắt nguồn). Mỗi chế độ 1 ô lưu (2 ô: Màn / Vô tận).
+
+| Trường | Kiểu | Ý nghĩa |
+|---|---|---|
+| `valid` | `uint8_t` | có ván lưu hợp lệ không |
+| `version` | `uint16_t` | version cấu trúc state (sai → bỏ ô lưu) |
+| `state` | `GameState` | toàn bộ snapshot ván (POD, không con trỏ → tuần tự hoá trực tiếp) |
+| `crc` | `uint32_t` | checksum |
+
+> **`GameState` là POD** (mảng + chỉ số, không con trỏ — hệ quả của Nguyên tắc II) nên **lưu/đọc thẳng**
+> dạng byte. `occupied[][]` có thể tái dựng nhưng lưu luôn cho đơn giản. Ô lưu nằm ở `store` (Flash),
+> tách khỏi record cài đặt (§2.7); `game.c` không tự ghi Flash.
 
 ## 3. Máy trạng thái (FR-014)
 
@@ -115,13 +152,20 @@ Struct trung tâm mà `game_step` thao tác; cũng là snapshot cho render.
 
 **Chuyển hợp lệ**:
 - `MENU → PLAYING`: SELECT trên "Start" → reset session về level 0, score 0, sâu dài `LEN_START`.
-- `PLAYING → PAUSED → PLAYING`: nút user (PA0) toggle; PAUSED dừng cập nhật game, vẫn giữ màn hình.
+- `PLAYING → PAUSED`: nút user (PA0). PAUSED là **menu** (3 mục): **Tiếp tục** → PLAYING; **Lưu & Thoát**
+  → `store_save_game(play_mode, snapshot)` rồi → MENU; **Thoát (không lưu)** → MENU (không ghi ô lưu).
+- `MENU → PLAYING (Tiếp tục)`: chọn "Tiếp tục" của một chế độ có ô lưu hợp lệ → `store_load_game` khôi phục
+  `GameState` rồi vào PLAYING (FR-030). Ô lưu **không** bị xóa khi tiếp tục (chỉ xóa khi ván kết thúc).
+- **Xóa ô lưu**: vào GAME_OVER/WIN của một ván đang chạy từ ô lưu → `store_clear_save(play_mode)` (FR-031).
 - `PLAYING → GAME_OVER`: đầu va biên/thân/chướng ngại (không có power-up phù hợp).
-- `PLAYING → LEVEL_COMPLETE`: `leaves_eaten ≥ target_leaves` và còn màn sau → SELECT/tự động sang
-  `PLAYING` màn kế (reset sâu, giữ score, `step_ms` màn mới).
+- `PLAYING → LEVEL_COMPLETE`: `leaves_eaten ≥ target_leaves` và còn màn sau. **LEVEL_COMPLETE → PLAYING
+  màn kế chỉ khi nhấn nút (SELECT)** — không tự động (FR-021); reset sâu, giữ score, `step_ms` màn mới.
 - `PLAYING → WIN`: đạt target ở màn cuối.
 - `GAME_OVER → MENU` / `WIN → MENU`: SELECT (FR-017 chơi lại = về MENU rồi Start, score 0).
 - Edge: sân đầy (không còn ô trống sinh lá) → coi như đạt mục tiêu màn → LEVEL_COMPLETE/WIN.
+- **MODE_ENDLESS**: PLAYING **không** chuyển LEVEL_COMPLETE/WIN; không nạp chướng ngại; `step_ms` giảm theo
+  số lá ăn (research §18). Chỉ PLAYING ⇄ PAUSED và PLAYING → GAME_OVER. GAME_OVER → MENU (cập nhật
+  `endless_high` qua `store` nếu `score` vượt).
 
 ## 4. Tín hiệu phần cứng (ngoài logic thuần)
 

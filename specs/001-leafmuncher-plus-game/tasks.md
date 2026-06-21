@@ -12,8 +12,8 @@ description: "Task list for LeafMuncher+ implementation"
 **Tests**: Test logic thuần là **BẮT BUỘC** ở đây — SC-006 + Nguyên tắc II (constitution) yêu cầu kiểm
 chứng tự động luật core trên host (gcc). Task test (host) có trong từng story tương ứng.
 
-**Organization**: Task gom theo user story (US1–US4) để hiện thực & test độc lập. Phase Setup +
-Foundational tương ứng mốc **M1–M2**; US1=M3, US2=M4, US3=M5–M6, US4=M7 (xem [plan.md](plan.md)).
+**Organization**: Task gom theo user story (US1–US7) để hiện thực & test độc lập. Phase Setup +
+Foundational tương ứng mốc **M1–M2**; US1=M3, US2=M4, US3=M5–M6, US4=M7, US5/US6/US7=M8 (xem [plan.md](plan.md)).
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -28,7 +28,8 @@ Foundational tương ứng mốc **M1–M2**; US1=M3, US2=M4, US3=M5–M6, US4=M
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-**Purpose**: Tạo khung 7 module + harness test host. Scaffold CubeMX đã có sẵn.
+**Purpose**: Tạo khung 7 module core + harness test host. Scaffold CubeMX đã có sẵn. (`theme`/`store`
+tạo ở Phase 7 cùng tính năng của chúng → tổng 9 module.)
 
 - [ ] T001 [P] Tạo skeleton header (include guard, rỗng) cho 7 module trong `Core/Inc/`: `gfx.h`, `input.h`, `game.h`, `levels.h`, `render.h`, `rng.h`, `tasks.h`
 - [ ] T002 [P] Tạo skeleton source (include header, stub rỗng) cho 7 module trong `Core/Src/`: `gfx.c`, `input.c`, `game.c`, `levels.c`, `render.c`, `rng.c`, `tasks.c`
@@ -185,16 +186,55 @@ GAME_OVER chọn chơi lại → ván mới điểm 0.
 
 ---
 
-## Phase 7: Polish & Cross-Cutting Concerns
+## Phase 7: User Story 5/6/7 - Chế độ chơi, Theme, Lưu & Tiếp tục ván (Priority: P2/P3) — Mốc M8
+
+**Goal**: 2 chế độ (Màn/Vô tận) chọn ở menu; 2 theme (Rừng/Sa mạc) đổi ở menu; lưu **điểm cao Vô tận +
+theme** vào Flash; **Pause nâng cao** (Tiếp tục/Lưu&Thoát/Thoát) + **lưu/tiếp tục ván** mỗi mode 1 ô (US7).
+Logic giữ thuần — theme/store ở lớp ngoài.
+
+**Independent Test**: Menu chọn Vô tận → sân trống, nhanh dần, không WIN, chết → điểm cao; đổi theme →
+màu/nền/chướng ngại đổi; Pause → Lưu & Thoát → tắt/bật nguồn → Tiếp tục đúng trạng thái; điểm cao + theme
+còn nguyên.
+
+### Tests for User Story 5/6 (host) ⚠️
+
+- [ ] T069 [US5] Test Endless: `step_ms` giảm theo số lá ăn (ramp `ENDLESS_STEP_DEC`/`ENDLESS_RAMP_EVERY`), clamp `STEP_MS_MIN`, **không** LEVEL_COMPLETE/WIN; điểm cao cập nhật khi `score` vượt; chế độ Màn không đổi hành vi; trong `test/test_game.c`
+
+### Implementation for User Story 5/6
+
+- [ ] T070 [P] [US6] Module `theme`: bảng `Theme` `const` cho `THEME_FOREST`/`THEME_DESERT` (bảng màu + sprite chướng ngại 16×16) + `theme_get`/`theme_count`/`theme_next` trong `Core/Src/theme.c` + `Core/Inc/theme.h` (hợp đồng [contracts/theme.md](contracts/theme.md))
+- [ ] T071 [P] [US5] Module `store`: `PersistData` + `store_init`/`store_get`/`store_set_*`/`store_commit`; ghi **1 sector Flash riêng** (erase+program) qua `HAL_FLASH_*`, magic/version/crc, fallback mặc định khi trống/hỏng trong `Core/Src/store.c` + `Core/Inc/store.h` (hợp đồng [contracts/store.md](contracts/store.md))
+- [ ] T072 [US5] Thêm `play_mode` vào `GameState` + `game_start(play_mode,…)`; nhánh **ENDLESS** trong `game_step`: không nạp chướng ngại, không `target`/WIN, `step_ms` giảm theo `leaves_eaten` (research §18), lá đặc biệt + power-up mở khoá từ đầu; chế độ Màn giữ nguyên trong `Core/Src/game.c` (phụ thuộc T019, T044)
+- [ ] T073 [US6] `render` đọc theme hiện hành: vẽ nền/màu/sprite chướng ngại theo `Theme` (thay màu hardcode); chữ HUD/đối tượng dùng bảng màu theme trong `Core/Src/render.c` (phụ thuộc T036, T070)
+- [ ] T074 [US5] Render HUD + GAME_OVER chế độ Vô tận (điểm ván + điểm cao) trong `Core/Src/render.c` (phụ thuộc T073)
+- [ ] T075 [US5/US6] Mở rộng MENU: chọn **chế độ** (Màn/Vô tận) + **đổi theme** (`theme_next`); `menu_sel` đa mục trong `Core/Src/game.c` (phụ thuộc T057)
+- [ ] T076 [US5/US6] Tích hợp `store` trong `Core/Src/tasks.c`/`freertos.c` USER CODE: `store_init` lúc boot → nạp `theme_id` cho render; khi đổi theme rời menu → `store_set_theme`+`store_commit`; ở GAME_OVER Vô tận nếu `score` > `endless_high` → `store_set_endless_high`+`store_commit` (phụ thuộc T070, T071, T075)
+- [ ] T077 Thêm `theme.c`, `store.c` vào `C_SOURCES` (Makefile) + **dành riêng sector 12 Bank 2 (`0x08100000`, 16 KB) cho store** trong `STM32F429XX_FLASH.ld` (MEMORY riêng / `NOLOAD`, tránh trùng vùng code Bank 1); ghi chú thêm lại sau mỗi CubeMX Generate; `./build.sh` 0 error
+- [ ] T078 Demo M8: menu chọn mode + theme → chơi Vô tận lập điểm cao → tắt/bật nguồn giữ điểm cao & theme; `make -C test` xanh + on-board (Acceptance US5/US6, FR-022..027)
+
+### Implementation for User Story 7 (Pause nâng cao + Lưu/Tiếp tục ván)
+
+- [ ] T079 [US7] Test host: round-trip `GameState` (copy byte → khôi phục → `game_step` cho kết quả y hệt); save→clear→`has_save`=false (mô phỏng bằng struct copy, không Flash) trong `test/test_game.c`
+- [ ] T080 [US7] `store`: thêm `store_save_game`/`store_load_game`/`store_has_save`/`store_clear_save` — **2 ô lưu** theo `PlayMode`, version+crc, sai → coi như không có (hợp đồng [contracts/store.md](contracts/store.md)) trong `Core/Src/store.c` (phụ thuộc T071)
+- [ ] T081 [US7] PAUSED → **menu 3 mục** (Tiếp tục / Lưu & Thoát / Thoát) + điều hướng joystick trong `Core/Src/game.c` (phụ thuộc T058)
+- [ ] T082 [US7] MENU "Tiếp tục [chế độ]" khi `store_has_save` → `store_load_game` → PLAYING; "Lưu & Thoát" → `store_save_game`+về MENU; xóa ô lưu khi GAME_OVER/WIN (`store_clear_save`) trong `Core/Src/game.c` + `Core/Src/tasks.c` (phụ thuộc T076, T080, T081)
+- [ ] T083 [US7] Render menu PAUSED 3 mục + chỉ báo "Tiếp tục" ở MENU trong `Core/Src/render.c` (phụ thuộc T060)
+- [ ] T084 [US7] Demo: chơi → Pause → Lưu & Thoát → tắt/bật nguồn → Tiếp tục đúng trạng thái; kết thúc → save tự mất; cả 2 mode độc lập; `make -C test` xanh + on-board (Acceptance US7, FR-028..032)
+
+**Checkpoint**: Game đầy đủ 7 user story — 2 chế độ, 2 theme, lưu bền vững, pause + lưu/tiếp tục ván.
+
+---
+
+## Phase 8: Polish & Cross-Cutting Concerns
 
 **Purpose**: Hoàn thiện đa-story.
 
-- [ ] T063 [P] Hoàn thiện `docs/ui/ui-design.md` với bảng màu/font thực tế đã dùng
-- [ ] T064 Rà soát dirty-rect & xác nhận **không nhấp nháy/không xé hình** bằng mắt (SC-003) trong `Core/Src/render.c`/`gfx.c`
-- [ ] T065 Rà soát warning từ `./build.sh`, xử lý (NT VII — không tích luỹ warning)
-- [ ] T066 [P] Cập nhật trạng thái mốc M1→M7 trong [AGENTS.md](../../AGENTS.md) §7
-- [ ] T067 Đối chiếu **8 peripheral bắt buộc** (GPIO, ADC+DMA, **Timer**, Interrupt, LTDC, FMC/SDRAM, DMA2D, FreeRTOS — constitution §2) đều nghiệm thu được trong [quickstart.md](quickstart.md); bổ sung mục thiếu
-- [ ] T068 Chạy trọn [quickstart.md](quickstart.md) end-to-end (M1→M7) làm nghiệm thu cuối
+- [ ] T085 [P] Hoàn thiện `docs/ui/ui-design.md` với bảng màu/font thực tế đã dùng + 2 theme
+- [ ] T086 Rà soát dirty-rect & xác nhận **không nhấp nháy/không xé hình** bằng mắt (SC-003) trong `Core/Src/render.c`/`gfx.c`
+- [ ] T087 Rà soát warning từ `./build.sh`, xử lý (NT VII — không tích luỹ warning)
+- [ ] T088 [P] Cập nhật trạng thái mốc M1→M8 trong [AGENTS.md](../../AGENTS.md) §7
+- [ ] T089 Đối chiếu **9 peripheral** (GPIO, ADC+DMA, **Timer**, Interrupt, LTDC, FMC/SDRAM, DMA2D, **Flash**, FreeRTOS — constitution §2) đều nghiệm thu được trong [quickstart.md](quickstart.md); bổ sung mục thiếu
+- [ ] T090 Chạy trọn [quickstart.md](quickstart.md) end-to-end (M1→M8) làm nghiệm thu cuối
 
 ---
 
@@ -206,7 +246,9 @@ GAME_OVER chọn chơi lại → ván mới điểm 0.
 - **Foundational (Phase 2, M1–M2)**: phụ thuộc Setup — **CHẶN mọi user story**.
 - **User Stories (Phase 3–6)**: đều phụ thuộc Foundational. Theo độ ưu tiên P1→P2→P3 (US1→US2→US3→US4)
   bám lộ trình M3→M7.
-- **Polish (Phase 7)**: sau khi các story mong muốn đã xong.
+- **US5/US6/US7 (Phase 7, M8)**: sau Foundational; dùng `game_step`/MENU của US1+US4 và nhánh level của US2;
+  US7 (pause+save/resume) dựa trên pause US4 + `store`.
+- **Polish (Phase 8)**: sau khi các story mong muốn đã xong.
 
 ### User Story Dependencies
 
@@ -215,6 +257,9 @@ GAME_OVER chọn chơi lại → ván mới điểm 0.
   (cần ST_LEVEL_COMPLETE/ST_WIN của US2). Test độc lập được.
 - **US3 (P3, M5–M6)**: sau Foundational. Dùng cơ chế sinh lá của US1 + đồng hồ ms thực (TIM7) của M1.
 - **US4 (P3, M7)**: sau Foundational. Bọc luồng MENU/PAUSE quanh PLAYING của US1; re-seed RNG tại Start.
+- **US5 (P2, M8)**: thêm `play_mode` + nhánh ENDLESS vào `game_step` (sau US1/US2); `store` (Flash) độc lập.
+- **US6 (P3, M8)**: `theme` cosmetic; `render` đọc theme (sau US1 render T036); MENU đổi theme (sau US4).
+- **US7 (P3, M8)**: pause-menu mở rộng US4 (T058/T060) + `store` (T071/T080); MENU "Tiếp tục" sau US5 mode-select.
 
 ### Within Each User Story
 
@@ -253,10 +298,10 @@ Task: "T017 TIM7 (.ioc) — time-base ms + heartbeat"
 1. Phase 1 Setup → 2. Phase 2 Foundational (M1+M2, CHẶN tất cả) → 3. Phase 3 US1 (M3).
 4. **STOP & VALIDATE**: chơi trọn 1 ván snake (quickstart M3) → demo MVP.
 
-### Incremental Delivery (bám M1→M7)
+### Incremental Delivery (bám M1→M8)
 
-Setup+Foundational → US1 (demo MVP) → US2 → US3 → US4. Mỗi mốc một bản nạp được, không phá mốc trước
-(SC-005, NT VI).
+Setup+Foundational → US1 (demo MVP) → US2 → US3 → US4 → US5/US6 (modes/theme/lưu). Mỗi mốc một bản nạp
+được, không phá mốc trước (SC-005, NT VI).
 
 ---
 
@@ -272,7 +317,8 @@ Setup+Foundational → US1 (demo MVP) → US2 → US3 → US4. Mỗi mốc một
 | M4 | US2 (T039–T046) | FR-007,008,009 |
 | M5–M6 | US3 (T047–T055) | FR-010,011,012,013 |
 | M7 | US4 (T056–T062) | FR-014,015,016,017 |
-| — | Polish (T063–T068) | SC-003,005 + NT VII |
+| M8 | US5/US6/US7 (T069–T084) | FR-022..032 (modes, theme, lưu Flash, pause+save/resume) |
+| — | Polish (T085–T090) | SC-003,005 + NT VII |
 
 ### Peripheral bắt buộc (constitution §2) ↔ task nghiệm thu
 
@@ -285,6 +331,7 @@ Setup+Foundational → US1 (demo MVP) → US2 → US3 → US4. Mỗi mốc một
 | LTDC | T008, T011 |
 | FMC/SDRAM | T008 (framebuffer) |
 | DMA2D | T008–T012 |
+| **Flash** | **T071** (store: lưu điểm cao + theme bền vững) |
 | FreeRTOS | T020–T025 |
 
 ---

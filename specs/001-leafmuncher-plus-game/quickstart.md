@@ -1,6 +1,6 @@
 # Quickstart — Kiểm chứng LeafMuncher+
 
-Hướng dẫn **chạy & kiểm chứng** rằng game hoạt động đúng spec, theo từng mốc M1→M7. Chi tiết luật ở
+Hướng dẫn **chạy & kiểm chứng** rằng game hoạt động đúng spec, theo từng mốc M1→M8. Chi tiết luật ở
 [contracts/](contracts/) và [data-model.md](data-model.md). Đây là guide xác thực, **không** chứa code.
 
 ## Yêu cầu trước
@@ -76,11 +76,24 @@ Bám US4.
 - [ ] PLAYING: nhấn nút B1 → PAUSED (game dừng, màn mờ + hộp "PAUSED"); nhấn tiếp → tiếp tục.
 - [ ] GAME_OVER: chọn "Chơi lại" → ván mới từ màn 1, **điểm 0**.
 
+### M8 — Chế độ chơi, Theme, Lưu bền vững, Pause & Tiếp tục ván
+Bám US5/US6/US7 + [contracts/theme.md](contracts/theme.md), [contracts/store.md](contracts/store.md).
+- [ ] MENU chọn **Chế độ Vô tận** → sân **không vật cản**, không WIN; ăn lá → **nhanh dần** tới sàn tối thiểu.
+- [ ] Vô tận chết → GAME_OVER hiện **điểm ván + điểm cao**; vượt kỷ lục → điểm cao cập nhật.
+- [ ] MENU đổi **theme Rừng↔Sa mạc** → màu/nền/**sprite chướng ngại** đổi theo; luật & lưới không đổi.
+- [ ] **Tắt nguồn rồi bật lại** → điểm cao Vô tận **và** theme đã chọn **vẫn còn** (đọc từ Flash).
+- [ ] Lần chạy đầu / Flash trống → nạp mặc định (theme Rừng, điểm cao 0), không lỗi.
+- [ ] `make -C test`: ramp tốc Endless + clamp sàn + không WIN; chế độ Màn không đổi hành vi.
+- [ ] PLAYING → nút B1 → PAUSED hiện menu **Tiếp tục / Lưu & Thoát / Thoát**; "Tiếp tục" → PLAYING.
+- [ ] PAUSED → **Lưu & Thoát** → về MENU; **tắt nguồn → bật lại** → MENU có **"Tiếp tục"** → khôi phục đúng ván (sâu/điểm/level/theme).
+- [ ] Ván tiếp tục chơi tới **GAME_OVER/WIN** → ô lưu **tự xóa** (MENU ẩn "Tiếp tục").
+- [ ] Cả 2 mode đều lưu/tiếp tục được, **độc lập** nhau; "Thoát (không lưu)" không xóa ô lưu cũ.
+
 ---
 
 ## Định nghĩa "Done" của plan này
-- [ ] M1→M7 đều có một bản **nạp được + demo được** (SC-005, NT VI).
+- [ ] M1→M8 đều có một bản **nạp được + demo được** (SC-005, NT VI).
 - [ ] `make -C test` xanh cho toàn bộ luật core (SC-006).
 - [ ] `./build.sh` 0 error ở mọi mốc (NT VII).
 - [ ] Không nhấp nháy/không xé hình quan sát bằng mắt (SC-003).
-- [ ] **8 peripheral bắt buộc đều nghiệm thu được** (constitution §2): GPIO, ADC+DMA, **Timer (TIM7)**, Interrupt, LTDC, FMC/SDRAM, DMA2D, FreeRTOS.
+- [ ] **9 peripheral đều nghiệm thu được** (constitution §2): GPIO, ADC+DMA, **Timer (TIM7)**, Interrupt, LTDC, FMC/SDRAM, DMA2D, **Flash (store)**, FreeRTOS.

@@ -96,8 +96,8 @@ demo mà không đổi kiến trúc.
   grace cho GHOST tránh chết oan lúc hết giờ.
 - **Alternatives**: luật ưu tiên giữa các loại (spec gợi ý nhưng bỏ — phức tạp, kém vui); PHASE đi xuyên
   chướng ngại (bỏ ở v1 — chỉ xuyên *tường biên*, chướng ngại vẫn chặn để giữ thử thách).
-- **Lưu ý spec**: spec mục Edge Cases nói "khác loại theo luật ưu tiên" — plan **thay bằng stack độc lập**;
-  ghi nhận lệch để cập nhật spec ở bước review.
+- **Lưu ý spec**: spec đã được **cập nhật khớp** quyết định này — Edge Cases + FR-012 nay ghi "stack độc lập"
+  (đồng bộ ngày 2026-06-21).
 
 ## 9. Level: số lượng, mục tiêu, layout
 
@@ -194,6 +194,66 @@ demo mà không đổi kiến trúc.
 - **Rationale**: hiện thực hoá SC-006 — kiểm chứng luật core độc lập phần cứng; chạy nhanh trên PC.
 - **Alternatives**: chỉ test trên bo (bỏ — chậm, khó tái lập, vi phạm tinh thần NT II).
 
+## 17. Theme (cosmetic) — `theme` module
+
+- **Decision**: 2 theme v1 — **THEME_FOREST**, **THEME_DESERT**. Mỗi theme là một struct `const` trong
+  Flash: bảng màu (nền/lưới/HUD/sâu/4 loại lá/chướng ngại) + **sprite 16×16 cho ô chướng ngại** (rừng =
+  thân cây, sa mạc = đá). `render` đọc theme hiện hành để vẽ; **ô chướng ngại vẫn do `levels` quyết định**.
+  Đổi theme **chỉ ở MENU**. Hợp đồng: [contracts/theme.md](contracts/theme.md).
+- **Rationale**: tách màu/sprite khỏi logic → giữ `game.c` thuần (NT II); thêm theme sau chỉ là thêm
+  một struct, không sửa module.
+- **Alternatives**: theme đổi layout/loại chướng ngại (bỏ — dính logic, mất tính test được); hardcode màu
+  trong `render` (bỏ — không mở rộng theme được).
+
+## 18. Chế độ chơi — LEVEL vs ENDLESS
+
+- **Decision**: `GameState.play_mode ∈ {MODE_LEVEL, MODE_ENDLESS}` chọn ở Main menu (lưu ý: trường `mode`
+  đã dùng cho trạng thái FSM, nên chế độ chơi là `play_mode`).
+  - **MODE_LEVEL**: campaign 5 màn như §3/§9 (có LEVEL_COMPLETE/WIN).
+  - **MODE_ENDLESS**: **không nạp chướng ngại**, không mục tiêu/WIN; `step_ms` bắt đầu = `ENDLESS_STEP0`
+    (180ms) và **giảm `ENDLESS_STEP_DEC` (3ms) mỗi `ENDLESS_RAMP_EVERY` (3) lá thường ăn**, clamp sàn
+    `STEP_MS_MIN`. Lá đặc biệt + power-up mở khoá **ngay từ đầu** (không gắn ngưỡng level). Chết → GAME_OVER
+    với điểm + điểm cao.
+- **Rationale**: tái dùng nguyên `game_step`; nhánh khác biệt nhỏ gọn theo `mode` → vẫn thuần, test được
+  riêng. "Chỉ nhanh dần" theo yêu cầu người dùng.
+- **Alternatives**: viết engine endless riêng (bỏ — trùng lặp); endless có chướng ngại sinh dần (bỏ —
+  người dùng chọn "chỉ nhanh dần").
+
+## 19. Lưu bền vững — `store` module (Flash)
+
+- **Decision**: 1 record cài đặt `PersistData` {magic, version, theme_id, endless_high, crc} + **2 ô lưu ván**
+  (§20) gộp trong **1 sector Flash 16 KB ở Bank 2 — sector 12 @ `0x08100000`**.
+  - **Vì sao Bank 2**: F429ZI 2MB **dual-bank** → CPU nạp lệnh từ **Bank 1** (code) trong khi xóa/ghi
+    **Bank 2** (store) ⇒ không đơ instruction fetch. Code (~36 KB, dự kiến <200 KB) nằm đầu Bank 1, không đụng.
+  - **Ngân sách**: cài đặt ~20 B + 2×(GameState ~900 B + header) ≈ **~1.9 KB** ≪ **16 KB** (thừa ~8×).
+  - **Read-modify-write**: giữ **RAM-mirror** cụm record; sửa → **xóa sector → ghi lại cả cụm 1 lần** (vì xóa
+    là cả sector). `store_init` ở boot nạp mirror, sai magic/version/crc → mặc định (FOREST, high=0).
+  - **Reserve linker**: khai báo vùng store là MEMORY riêng / section `NOLOAD` trong
+    `STM32F429XX_FLASH.ld` để linker không đặt code/const đè.
+  - **Commit thưa**: chỉ ghi khi Lưu&Thoát / lập điểm cao / đổi theme rời menu — KHÔNG ghi mỗi frame.
+  - Chỉ `store.c` gọi `HAL_FLASH_*`. Hợp đồng: [contracts/store.md](contracts/store.md).
+- **Rationale**: thoả FR-027 (giữ qua tắt nguồn) + thể hiện peripheral Flash; commit thưa → tránh mòn Flash;
+  cô lập Flash khỏi logic (NT II/III).
+- **Alternatives**: EEPROM emulation 2-sector của ST (bỏ ở v1 — thừa cho 1 record nhỏ, tần suất ghi thấp);
+  backup SRAM/RTC (bỏ — mất khi mất pin VBAT).
+- **Lưu ý độ bền/thời gian**: Flash F4 ~**10.000 chu kỳ xóa**/sector — commit thưa ⇒ thừa sức cho đồ án.
+  Xóa sector 16 KB ~**vài trăm ms** → chỉ commit lúc **PAUSED/GAME_OVER** (game đang dừng), không lúc chạy
+  tick. Mất điện giữa lúc ghi → magic+version+CRC giúp `store_init` phát hiện hỏng và nạp mặc định.
+
+## 20. Pause nâng cao + Lưu/Tiếp tục ván (US7)
+
+- **Decision**: PAUSED là **menu 3 mục** (Tiếp tục / Lưu & Thoát / Thoát-không-lưu), điều hướng joystick +
+  nút. "Lưu & Thoát" → `store_save_game(play_mode, &state)` rồi về MENU. MENU hiện **"Tiếp tục [chế độ]"**
+  khi `store_has_save(mode)`. **Mỗi chế độ 1 ô lưu** (2 ô); ván tiếp-tục khi kết thúc → `store_clear_save`.
+  Snapshot = **toàn bộ `GameState`** (POD → chép byte + crc). Lưu power-up theo **ms còn lại** để khôi phục
+  liền mạch.
+- **Rationale**: `GameState` đã thuần/POD nên serialize trực tiếp — không cần code marshalling; tái dùng
+  `store` (Flash). 3 mục cho người chơi chủ động (theo lựa chọn người dùng). 2 ô độc lập tránh ghi đè chéo.
+- **Alternatives**: tự lưu khi về Home (bỏ — người dùng muốn chủ động Lưu/Thoát riêng); 1 ô lưu chung
+  (bỏ — người dùng muốn mỗi mode 1 ô); chỉ lưu hạt giống + thao tác để replay (bỏ — phức tạp, không cần).
+- **Lưu ý kích thước**: `GameState` ~1KB (worm 260·2B + occupied 260B + lá/power/scalars) → 2 ô + cài đặt
+  vẫn nằm gọn trong 1 sector Flash.
+
 ---
 
 ## Tổng hợp hằng số (đặt trong `game.h`/`levels.h`)
@@ -209,6 +269,9 @@ GOLD_CHANCE=15%  GOLD_LIFE_MS=8000
 POISON_CHANCE=20% (lvl>=2)  PU_CHANCE=12% (lvl>=3)  PU_LIFE_MS=10000
 LEVELS=5  TARGET[1..5]={6,8,10,12,14}
 DEADZONE=±500  HYSTERESIS=1.3x  INPUT_HZ=50  DEBOUNCE_MS=30
+ENDLESS_STEP0=180  ENDLESS_STEP_DEC=3  ENDLESS_RAMP_EVERY=3  (clamp STEP_MS_MIN=70)
+THEME_COUNT=2 {FOREST,DESERT}
+STORE_MAGIC=0x4C4D2B01  STORE_VERSION=1  (1 sector Flash riêng)
 ```
 
 > Tất cả mục *(tunable)* có thể chỉnh khi cân bằng gameplay lúc demo — không yêu cầu đổi kiến trúc/module.

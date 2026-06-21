@@ -10,19 +10,20 @@ Game nhúng "Sâu Ăn Lá+" (snake mở rộng) trên **STM32F429I-DISC1** + joy
 thuật: **tách logic thuần khỏi phần cứng** — `game`/`levels`/`rng` là C thuần, unit-test trên PC; lớp
 driver (`gfx`/`input`) chạm HAL; `render` ánh xạ state→gfx; `tasks` chạy 3 task FreeRTOS (Input/Game/
 Render) đồng bộ qua queue + mutex + semaphore. Đồ hoạ **tự code trên framebuffer SDRAM + DMA2D +
-double-buffer**, swap đồng bộ VSYNC (không thư viện GUI). Phát triển theo mốc **M1→M7**, ưu tiên M3
-(rắn cổ điển) trước.
+double-buffer**, swap đồng bộ VSYNC (không thư viện GUI). Bổ sung **2 chế độ** (Màn/Vô tận), **2 theme**
+cosmetic (Rừng/Sa mạc — module `theme`) và **lưu bền vững** điểm cao + theme vào **Flash** (module `store`), **pause nâng cao** (Tiếp tục/Lưu&Thoát/
+Thoát) + **lưu/tiếp tục ván** mỗi mode 1 ô. Phát triển theo mốc **M1→M8**, ưu tiên M3 (rắn cổ điển) trước.
 
 ## Technical Context
 
 **Language/Version**: C11 (firmware, HAL/CMSIS) + C (host unit test). KHÔNG dùng C++.
 
 **Primary Dependencies**: STM32 HAL F4 + CMSIS, FreeRTOS qua CMSIS-RTOS v2 (heap_4), peripheral
-LTDC/FMC(SDRAM)/DMA2D/ADC1+DMA/SPI5(panel ILI9341)/TIM6(HAL timebase)/TIM7(đồng hồ ms + heartbeat)/GPIO.
+LTDC/FMC(SDRAM)/DMA2D/ADC1+DMA/SPI5(panel ILI9341)/TIM6(HAL timebase)/TIM7(đồng hồ ms + heartbeat)/GPIO/Flash nội (HAL_FLASH — module `store`).
 Build: `arm-none-eabi-gcc` + `make` (bundled CubeIDE). Host test: `gcc` thường (không link HAL).
 
-**Storage**: N/A trong v1 (không lưu high-score — stretch goal). Framebuffer đặt trong SDRAM 8MB; state
-game trong SRAM nội.
+**Storage**: **1 sector Flash nội** cho module `store` (điểm cao Vô tận + theme đã chọn, giữ qua tắt
+nguồn — FR-027). Framebuffer đặt trong SDRAM 8MB; state game trong SRAM nội.
 
 **Testing**: Unit-test host (gcc + assert) cho logic thuần (`game`/`levels`/`rng`) — bao phủ SC-006.
 Phần cứng: smoke test trên bo + checklist thủ công theo từng mốc.
@@ -39,8 +40,9 @@ nhấp nháy/không xé hình (swap tại VSYNC); độ trễ input→đổi hư
 CODE (NT III); 2 framebuffer 320×240×2 = 300KB nằm gọn trong SDRAM; `./build.sh` 0 error là cổng bắt
 buộc (NT VII).
 
-**Scale/Scope**: 6 trạng thái (MENU/PLAYING/PAUSED/GAME_OVER/LEVEL_COMPLETE/WIN), 5 level, ~7 module,
-lưới 20×13 = 260 ô, 4 loại power-up, 1 người chơi.
+**Scale/Scope**: 6 trạng thái (MENU/PLAYING/PAUSED/GAME_OVER/LEVEL_COMPLETE/WIN), **2 chế độ chơi**
+(Màn 5 level / Vô tận), **2 theme** (Rừng/Sa mạc), **~9 module**, lưới 20×13 = 260 ô, 4 loại power-up,
+lưu bền vững qua Flash, 1 người chơi.
 
 ## Constitution Check
 
@@ -51,9 +53,9 @@ lưới 20×13 = 260 ô, 4 loại power-up, 1 người chơi.
 | I | Tech stack cố định | Giữ CubeMX/Makefile/arm-gcc/FreeRTOS CMSIS_V2/DMA2D; không thêm dependency, không GUI lib | ✅ PASS |
 | II | Tách logic khỏi phần cứng | `game.c`/`levels.c`/`rng.c` chỉ thao tác struct/mảng, nhận input qua tham số; host-test bằng gcc | ✅ PASS |
 | III | Bảo toàn code khi regenerate | Module game ở file riêng; `main.c`/`freertos.c` chỉ *gọi* từ `/* USER CODE BEGIN/END */` | ✅ PASS |
-| IV | Cô lập module | 7 module 1-trách-nhiệm: gfx · input · game · levels · render · rng · tasks | ✅ PASS |
+| IV | Cô lập module | 9 module 1-trách-nhiệm: gfx · input · game · levels · render · rng · theme · store · tasks | ✅ PASS |
 | V | Đồ hoạ không nhấp nháy | framebuffer SDRAM + DMA2D fill/blit + double-buffer, swap tại ngắt LTDC (VSYNC) | ✅ PASS |
-| VI | Luôn có bản chạy được | Lộ trình M1→M7, mỗi mốc nạp được + demo được; ưu tiên M3 | ✅ PASS |
+| VI | Luôn có bản chạy được | Lộ trình M1→M8, mỗi mốc nạp được + demo được; ưu tiên M3 | ✅ PASS |
 | VII | Build sạch bắt buộc | Định nghĩa Done = `./build.sh` 0 error + mốc chạy được; tuyên bố kèm bằng chứng | ✅ PASS |
 
 **Kết luận:** 0 vi phạm → Complexity Tracking để trống.
@@ -72,7 +74,9 @@ specs/001-leafmuncher-plus-game/
 │   ├── game-core.md     #   API logic thuần (game_step) + bất biến
 │   ├── render-gfx.md    #   API gfx + hợp đồng render
 │   ├── input.md         #   ánh xạ joystick→hướng + sự kiện nút
-│   └── levels.md        #   định dạng dữ liệu level
+│   ├── levels.md        #   định dạng dữ liệu level
+│   ├── theme.md         #   bảng màu + sprite theo theme (cosmetic)
+│   └── store.md         #   lưu bền vững Flash (điểm cao + theme)
 └── tasks.md             # Phase 2 (/speckit-tasks — CHƯA tạo ở bước này)
 ```
 
@@ -91,6 +95,8 @@ Core/
 │   ├── levels.h            #   [tự viết] dữ liệu level (const)
 │   ├── render.h            #   [tự viết] state → gfx
 │   ├── rng.h               #   [tự viết] PRNG thuần
+│   ├── theme.h             #   [tự viết] bảng màu + sprite theo theme (cosmetic)
+│   ├── store.h             #   [tự viết] lưu bền vững (Flash): điểm cao + theme
 │   └── tasks.h             #   [tự viết] khởi tạo 3 task + đối tượng đồng bộ
 ├── Src/                    # CubeMX (main.c, freertos.c, adc.c, ltdc.c, dma2d.c, fmc.c…)
 │   ├── gfx.c               #   [tự viết] DMA2D fill/blit/blend, swap VSYNC
@@ -99,6 +105,8 @@ Core/
 │   ├── levels.c            #   [tự viết] THUẦN — bảng level
 │   ├── render.c            #   [tự viết] vẽ từng trạng thái (dirty-rect)
 │   ├── rng.c               #   [tự viết] THUẦN — xorshift32
+│   ├── theme.c             #   [tự viết] 2 theme (Rừng/Sa mạc) — màu + sprite chướng ngại
+│   ├── store.c             #   [tự viết] HAL_FLASH erase/program 1 sector + crc + fallback
 │   └── tasks.c             #   [tự viết] InputTask/GameTask/RenderTask + queue/mutex/sem
 └── (assets)               #   font 8×16 + bảng màu (const trong flash)
 
