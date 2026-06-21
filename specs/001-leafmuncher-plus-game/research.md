@@ -275,3 +275,27 @@ STORE_MAGIC=0x4C4D2B01  STORE_VERSION=1  (1 sector Flash riêng)
 ```
 
 > Tất cả mục *(tunable)* có thể chỉnh khi cân bằng gameplay lúc demo — không yêu cầu đổi kiến trúc/module.
+
+## 21. Bring-up phần cứng hiển thị — gotchas ĐÃ XÁC MINH trên bo (M1)
+
+Quá trình đưa LTDC + ILI9341 + SDRAM lên bo STM32F429I-DISC1 phát hiện 4 điểm bắt buộc; ghi lại để
+không vấp lại (đối chiếu được vì máy chạy ảnh TouchGFX bình thường → phần cứng tốt, lỗi do cấu hình):
+
+1. **SDRAM cần chuỗi init thiết bị.** `MX_FMC_Init()` (CubeMX) **chỉ** cấu hình controller. Phải tự gửi
+   chuỗi: CLK_ENABLE → delay → PALL → AUTOREFRESH×8 → LOAD_MODE (BL=1, CAS=3) → `ProgramRefreshRate`.
+   SDCLK = HCLK/2 = 36MHz → refresh count ≈ **542**. Thiếu → màn trắng/nhiễu. (đặt trong `gfx_init`).
+
+2. **Panel ILI9341 RGB mode cần lệnh `0xB0 = 0xC2`** (RGB Interface Signal Control). Đây là mảnh hay bị
+   thiếu nhất → biểu hiện **sọc ngang** dù framebuffer đồng nhất. Chuỗi init đúng = khớp **BSP ST/MaJerle**
+   (gồm `0xCA`, `0xB0=0xC2`, MADCTL `0x36=0xC8`, `0xF6={0x01,0x00,0x06}`, set cửa sổ `0x2A/0x2B`, `0x2C`).
+
+3. **DMA2D Register-to-Memory (R2M): màu nạp vào OCOLR phải là `ARGB8888`, KHÔNG phải RGB565.** DMA2D tự
+   chuyển ARGB8888→RGB565 khi ghi framebuffer. Truyền thẳng RGB565 → **lệch/xoay kênh màu** (đỏ hiện ra
+   lục…). `gfx` phải có helper `argb_from_565()` trước khi gọi `HAL_DMA2D_Start` ở chế độ R2M.
+
+4. **LTDC pixel clock phải ~6MHz** (dải ILI9341 RGB ~6–10MHz). CubeMX mặc định cho PLLSAI ra **~25MHz**
+   (PLLSAIN=50, R=2, DivR=2 với HCLK 72MHz) → quá nhanh ~4× → panel không chốt kịp. Hạ về ~6.25MHz
+   (R=4, DivR=4). **Nên đặt trong CubeMX (Clock Config)**, hoặc reconfig PLLSAI ở USER CODE.
+
+> Ghi chú clock: dự án đang chạy HCLK **72MHz** (PLLM4/PLLN72/P2). Cân nhắc nâng **180MHz** chuẩn F429
+> (CPU nhanh hơn, SDCLK 90MHz gấp đôi băng thông) — khi đó tính lại refresh count SDRAM và PLLSAI.
