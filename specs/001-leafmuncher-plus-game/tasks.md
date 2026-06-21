@@ -67,7 +67,7 @@ tạo ở Phase 7 cùng tính năng của chúng → tổng 9 module.)
 
 ### M2 — Khung engine FreeRTOS
 
-- [ ] T019 Định nghĩa `GameState` (worm ring buffer, `occupied[13][20]`, lá, power, score, level) + `game_init`/`game_start` + query đọc-chỉ `game_cell_content`/`game_step_ms` (toàn bộ API thuần của `game.h`), trong `Core/Src/game.c` + `Core/Inc/game.h` (data-model §2.5; hợp đồng [contracts/game-core.md](contracts/game-core.md)) (phụ thuộc T003 — dùng kiểu/hằng do T003 khai báo trong cùng `game.h`)
+- [x] T019 Định nghĩa `GameState` (worm ring buffer, `occupied[13][20]`, lá, power, score, level) + `game_init`/`game_start` + query đọc-chỉ `game_cell_content`/`game_step_ms` (toàn bộ API thuần của `game.h`), trong `Core/Src/game.c` + `Core/Inc/game.h` (data-model §2.5; hợp đồng [contracts/game-core.md](contracts/game-core.md)) (phụ thuộc T003 — dùng kiểu/hằng do T003 khai báo trong cùng `game.h`) — **host test pass** (`test_game.c`: init MENU/start PLAYING, sâu LEN_START giữa sân, occupied=thân, query lá/oob, tính xác định cùng seed); `STEP_MS[]`/`TARGET_LEAVES[]` định nghĩa trong `levels.c` (lát cắt T041)
 - [ ] T020 Tạo đối tượng đồng bộ: queue input (sâu 4, overwrite), mutex snapshot state, semaphore/notification "frame ready" trong `Core/Src/apptasks.c` (research §12)
 - [ ] T021 `InputTask` @50Hz đọc `input_poll` → đẩy `InputEvent` vào queue trong `Core/Src/apptasks.c` (phụ thuộc T014, T020)
 - [ ] T022 `GameTask` `vTaskDelayUntil(step_ms)`, lấy input mới nhất, gọi `game_step`, ghi snapshot dưới mutex, báo render trong `Core/Src/apptasks.c` (phụ thuộc T019, T020)
