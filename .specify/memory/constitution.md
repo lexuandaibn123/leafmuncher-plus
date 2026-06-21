@@ -1,11 +1,13 @@
 <!--
 Sync Impact Report
 ==================
-Version change: (template) → 1.0.0 → 1.1.0
+Version change: (template) → 1.0.0 → 1.1.0 → 1.1.1
 Bump rationale:
   - 1.0.0: Lần phê chuẩn đầu tiên — thay toàn bộ placeholder bằng 7 nguyên tắc cụ thể.
   - 1.1.0 (MINOR, 2026-06-21): thêm module `theme`/`store` (NT IV) + peripheral Flash (§2)
     cho tính năng 2 chế độ chơi, theme và lưu bền vững (US5/US6).
+  - 1.1.1 (PATCH, 2026-06-21): đồng bộ lộ trình NT VI "M1→M7" → "M1→M8"; bổ sung nút B1=PA0
+    + LED PG13/PG14 vào §2 (không đổi ngữ nghĩa nguyên tắc).
 Modified principles: (none — khởi tạo mới)
 Added sections:
   - 7 Core Principles (I..VII)
@@ -67,7 +69,7 @@ KHÔNG vẽ trực tiếp lên buffer đang quét. Lưới game = ô vuông → 
 *Lý do:* trải nghiệm mượt, không xé hình; đồng thời thể hiện kiến thức LTDC/FMC/DMA2D của đồ án.
 
 ### VI. Luôn Có Bản Chạy Được (Always-Shippable Increments)
-Phát triển theo lộ trình tăng dần **M1→M7** (xem spec). Sau mỗi mốc PHẢI có một bản **nạp được và demo được**.
+Phát triển theo lộ trình tăng dần **M1→M8** (xem spec). Sau mỗi mốc PHẢI có một bản **nạp được và demo được**.
 Ưu tiên hoàn thiện "rắn cổ điển chạy được" (M3) trước khi thêm power-up/level.
 KHÔNG để code ở trạng thái không build/không chạy qua đêm.
 
@@ -81,6 +83,7 @@ Tuyên bố "đã chạy/đã sửa" PHẢI kèm bằng chứng (output build, h
 - **Bo:** STM32F429I-DISC1 (STM32F429ZI, Cortex-M4 180MHz, 2MB Flash, 256KB RAM, SDRAM 8MB,
   TFT 320×240 ILI9341 qua LTDC).
 - **Chân joystick (đã chốt):** VRx=**PA5** (ADC1_IN5), VRy=**PC3** (ADC1_IN13), SW=**PB7** (GPIO_Input + Pull-up).
+- **Nút trên bo:** B1 user button = **PA0** (dùng cho PAUSE khi đang chơi); LED xanh **PG13**, LED đỏ **PG14**.
   Chân cấm dùng (bo đã chiếm): PA7, PC4, PC1, PC2, PA1, PA2.
 - **Peripheral cần thể hiện (yêu cầu đồ án):** GPIO, ADC(+DMA), Timer, Interrupt, LTDC, FMC/SDRAM, DMA2D, Flash (lưu bền vững), FreeRTOS.
 - **Kiến trúc runtime:** 3 task FreeRTOS — Input (đọc ADC/nút), Game (logic, `vTaskDelayUntil`), Render (vẽ);
@@ -108,4 +111,4 @@ trừ khi người dùng ra chỉ thị trực tiếp.
 - **Tuân thủ:** mỗi lần review/PR phải đối chiếu 7 nguyên tắc; độ phức tạp phát sinh phải có lý do.
 - **Hướng dẫn runtime:** xem `docs/setup/` và spec trong `specs/`.
 
-**Version**: 1.1.0 | **Ratified**: 2026-06-19 | **Last Amended**: 2026-06-21
+**Version**: 1.1.1 | **Ratified**: 2026-06-19 | **Last Amended**: 2026-06-21
