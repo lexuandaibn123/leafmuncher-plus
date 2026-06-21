@@ -73,6 +73,26 @@ static void draw_playing(const GameState *gs)
   }
 }
 
+/* T037: màn GAME_OVER — nền đỏ thẫm, tiêu đề, điểm cuối, nhắc bấm chơi lại. */
+static void draw_game_over(const GameState *gs)
+{
+  uint16_t bg = gfx_rgb565(28, 8, 8);
+  uint16_t fg = gfx_rgb565(240, 240, 240);
+  gfx_clear(bg);
+  /* Font 8×16: căn giữa thủ công theo độ dài chuỗi. */
+  gfx_text((SCREEN_W - 9 * 8) / 2, 70, "GAME OVER", gfx_rgb565(255, 80, 80), bg);
+
+  char line[20];
+  int p = 0;
+  const char *s = "SCORE ";
+  while (*s) line[p++] = *s++;
+  p += put_u32(line + p, gs->score);
+  line[p] = 0;
+  gfx_text((SCREEN_W - p * 8) / 2, 110, line, fg, bg);
+
+  gfx_text((SCREEN_W - 12 * 8) / 2, 150, "PRESS BUTTON", gfx_rgb565(180, 180, 180), bg);
+}
+
 static void draw_by_mode(const GameState *gs)
 {
   switch (gs->mode) {
@@ -81,8 +101,11 @@ static void draw_by_mode(const GameState *gs)
       draw_hud(gs);
       draw_playing(gs);
       break;
+    case ST_GAME_OVER:
+      draw_game_over(gs);
+      break;
     default:
-      /* MENU/GAME_OVER/LEVEL_COMPLETE/WIN — M2 tối thiểu: nền + nhãn (đầy đủ ở T060/US4). */
+      /* MENU/LEVEL_COMPLETE/WIN — M2 tối thiểu: nền + nhãn (đầy đủ ở T060/US4). */
       gfx_clear(gfx_rgb565(8, 8, 28));
       gfx_text(80, 112, "LEAFMUNCHER+", gfx_rgb565(235, 235, 235), gfx_rgb565(8, 8, 28));
       break;

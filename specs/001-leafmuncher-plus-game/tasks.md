@@ -91,20 +91,20 @@ GAME_OVER hiện điểm. (Menu đầy đủ thuộc US4 — ở M3 boot thẳng
 
 ### Tests for User Story 1 (host, BẮT BUỘC) ⚠️
 
-- [ ] T028 [US1] Test move/grow/eat: ăn lá → `len+1`, `score+10`, sinh lá mới ở ô trống; trong `test/test_game.c`
-- [ ] T029 [US1] Test va chạm: tường + thân **trừ ô đuôi vừa nhả** (đi vào ô đuôi cũ KHÔNG chết); deadzone đi thẳng; trong `test/test_game.c`
-- [ ] T030 [US1] Test chặn 180° gồm **gạt 2 lần trong 1 tick** (theo `committed_dir`); trong `test/test_game.c`
-- [ ] T031 [US1] Test sinh lá không đè thân/chướng ngại; trong `test/test_game.c` *(nhánh sân-đầy→thắng-màn cần ST_LEVEL_COMPLETE/ST_WIN nên test ở US2/T040, không ở đây)*
+- [x] T028 [US1] Test move/grow/eat: ăn lá → `len+1`, `score+10`, sinh lá mới ở ô trống; trong `test/test_game.c` — deadzone đi thẳng + `EV_ATE_NORMAL`, occupied khớp thân
+- [x] T029 [US1] Test va chạm: tường + thân **trừ ô đuôi vừa nhả** (đi vào ô đuôi cũ KHÔNG chết); deadzone đi thẳng; trong `test/test_game.c` — thêm helper `rebuild_occupied`
+- [x] T030 [US1] Test chặn 180° gồm **gạt 2 lần trong 1 tick** (theo `committed_dir`); trong `test/test_game.c` — bẫy UP→DOWN tick kế bị chặn
+- [x] T031 [US1] Test sinh lá không đè thân/chướng ngại; trong `test/test_game.c` — 8 lần ăn liên tiếp, mỗi lá mới không trùng thân & `occupied==0` *(nhánh sân-đầy→thắng-màn cần ST_LEVEL_COMPLETE/ST_WIN nên test ở US2/T040, không ở đây)*
 
 ### Implementation for User Story 1
 
-- [ ] T032 [US1] Hiện thực di chuyển sâu + commit hướng (lọc 180° theo `committed_dir`, buffer đúng 1 lệnh rẽ) trong `Core/Src/game.c`
-- [ ] T033 [US1] Ăn lá thường (grow, score+10, cập nhật `occupied`) + sinh lá ở ô trống (duyệt ô trống/chọn ô thứ k qua `rng`) trong `Core/Src/game.c` (phụ thuộc T032)
-- [ ] T034 [US1] Phát hiện va chạm (tường + thân-trừ-ô-đuôi) → `ST_GAME_OVER` + `EV_GAME_OVER` trong `Core/Src/game.c` (phụ thuộc T032)
-- [ ] T035 [US1] `game_step` máy trạng thái PLAYING (áp input, deadzone đi thẳng, sinh sự kiện) + chuyển sang GAME_OVER trong `Core/Src/game.c` (phụ thuộc T032–T034)
-- [ ] T036 [US1] Render PLAYING dirty-rect: ô đầu mới, ô đuôi cũ, ô lá, vùng điểm HUD trong `Core/Src/render.c` (phụ thuộc T024)
-- [ ] T037 [US1] Render màn GAME_OVER (điểm cuối) + bật LED đỏ; LED xanh khi PLAYING trong `Core/Src/render.c` + `Core/Src/apptasks.c` (phụ thuộc T036)
-- [ ] T038 [US1] Boot thẳng vào PLAYING (tạm thời, sẽ thay bằng MENU ở US4/T061) trong `Core/Src/game.c`/`freertos.c` USER CODE; chạy `make -C test` xanh + `./build.sh` + on-board M3 (Acceptance US1, SC-001/002/006)
+- [x] T032 [US1] Hiện thực di chuyển sâu + commit hướng (lọc 180° theo `committed_dir`, buffer đúng 1 lệnh rẽ) trong `Core/Src/game.c`
+- [x] T033 [US1] Ăn lá thường (grow, score+10, cập nhật `occupied`) + sinh lá ở ô trống (đếm ô trống → chọn ô thứ k qua `rng_range`) trong `Core/Src/game.c` — helper `spawn_leaf`/`cell_has_leaf`; `game_start` sinh lá đầu màn
+- [x] T034 [US1] Phát hiện va chạm (tường + thân-trừ-ô-đuôi) → `ST_GAME_OVER` + `EV_GAME_OVER` trong `Core/Src/game.c`
+- [x] T035 [US1] `game_step` máy trạng thái PLAYING (áp input, deadzone đi thẳng, sinh sự kiện) + chuyển sang GAME_OVER trong `Core/Src/game.c` — thêm `game_input_ui` tối thiểu (GAME_OVER + nút → chơi lại)
+- [ ] T036 [US1] Render PLAYING dirty-rect: ô đầu mới, ô đuôi cũ, ô lá, vùng điểm HUD trong `Core/Src/render.c` (phụ thuộc T024) — *HOÃN: vẽ đủ khung vẫn đạt FPS ở tốc snake (research §14); tối ưu sau khi cần*
+- [x] T037 [US1] Render màn GAME_OVER (điểm cuối) + bật LED đỏ; LED xanh khi PLAYING trong `Core/Src/render.c` + `Core/Src/apptasks.c` — `draw_game_over`; RenderTask `led_red(mode==GAME_OVER)`
+- [x] T038 [US1] Boot thẳng vào PLAYING (tạm thời, sẽ thay bằng MENU ở US4/T061) trong `Core/Src/game.c`/`freertos.c` USER CODE; chạy host test xanh + `./build.sh` 0 lỗi (on-board M3 chờ nghiệm thu) (Acceptance US1, SC-001/002/006)
 
 **Checkpoint**: US1 hoạt động & test độc lập — đây là MVP demo được.
 
