@@ -1,8 +1,11 @@
 <!--
 Sync Impact Report
 ==================
-Version change: (template) → 1.0.0
-Bump rationale: Lần phê chuẩn đầu tiên — thay toàn bộ placeholder bằng 7 nguyên tắc cụ thể.
+Version change: (template) → 1.0.0 → 1.1.0
+Bump rationale:
+  - 1.0.0: Lần phê chuẩn đầu tiên — thay toàn bộ placeholder bằng 7 nguyên tắc cụ thể.
+  - 1.1.0 (MINOR, 2026-06-21): thêm module `theme`/`store` (NT IV) + peripheral Flash (§2)
+    cho tính năng 2 chế độ chơi, theme và lưu bền vững (US5/US6).
 Modified principles: (none — khởi tạo mới)
 Added sections:
   - 7 Core Principles (I..VII)
@@ -53,7 +56,8 @@ Mọi thay đổi cấu hình peripheral đi qua `.ioc` rồi Generate, không s
 ### IV. Cô Lập Module (Single-Responsibility Modules)
 Mỗi module có **một trách nhiệm** và một interface gọn (header khai báo tối thiểu cái cần lộ):
 `gfx` (vẽ framebuffer) · `input` (đọc joystick) · `game` (logic) · `render` (state→gfx) ·
-`rng` (số ngẫu nhiên) · `tasks` (vòng đời FreeRTOS). Người đọc PHẢI hiểu module làm gì mà không cần đọc nội tạng.
+`rng` (số ngẫu nhiên) · `theme` (bảng màu/sprite cosmetic) · `store` (lưu bền vững Flash) ·
+`tasks` (vòng đời FreeRTOS). Người đọc PHẢI hiểu module làm gì mà không cần đọc nội tạng.
 Khi một file phình to / ôm nhiều việc → tách nhỏ.
 
 ### V. Đồ Hoạ Không Nhấp Nháy (Flicker-Free Rendering)
@@ -78,7 +82,7 @@ Tuyên bố "đã chạy/đã sửa" PHẢI kèm bằng chứng (output build, h
   TFT 320×240 ILI9341 qua LTDC).
 - **Chân joystick (đã chốt):** VRx=**PA5** (ADC1_IN5), VRy=**PC3** (ADC1_IN13), SW=**PB7** (GPIO_Input + Pull-up).
   Chân cấm dùng (bo đã chiếm): PA7, PC4, PC1, PC2, PA1, PA2.
-- **Peripheral cần thể hiện (yêu cầu đồ án):** GPIO, ADC(+DMA), Timer, Interrupt, LTDC, FMC/SDRAM, DMA2D, FreeRTOS.
+- **Peripheral cần thể hiện (yêu cầu đồ án):** GPIO, ADC(+DMA), Timer, Interrupt, LTDC, FMC/SDRAM, DMA2D, Flash (lưu bền vững), FreeRTOS.
 - **Kiến trúc runtime:** 3 task FreeRTOS — Input (đọc ADC/nút), Game (logic, `vTaskDelayUntil`), Render (vẽ);
   đồng bộ qua **queue + mutex + semaphore**.
 - **Lưới game:** ô 16×16px, sân chơi 20×13, HUD trên cùng 32px.
@@ -104,4 +108,4 @@ trừ khi người dùng ra chỉ thị trực tiếp.
 - **Tuân thủ:** mỗi lần review/PR phải đối chiếu 7 nguyên tắc; độ phức tạp phát sinh phải có lý do.
 - **Hướng dẫn runtime:** xem `docs/setup/` và spec trong `specs/`.
 
-**Version**: 1.0.0 | **Ratified**: 2026-06-19 | **Last Amended**: 2026-06-19
+**Version**: 1.1.0 | **Ratified**: 2026-06-19 | **Last Amended**: 2026-06-21
