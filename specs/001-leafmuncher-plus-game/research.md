@@ -299,3 +299,23 @@ không vấp lại (đối chiếu được vì máy chạy ảnh TouchGFX bình
 
 > Ghi chú clock: dự án đang chạy HCLK **72MHz** (PLLM4/PLLN72/P2). Cân nhắc nâng **180MHz** chuẩn F429
 > (CPU nhanh hơn, SDCLK 90MHz gấp đôi băng thông) — khi đó tính lại refresh count SDRAM và PLLSAI.
+
+## 22. Bring-up joystick (ADC1 + DMA) — gotchas ĐÃ XÁC MINH trên bo (M1, T013–T015)
+
+Đưa joystick analog lên bo (`input_init`/`input_poll`) phát hiện 2 cái bẫy về cấu hình ADC continuous + DMA:
+
+1. **KHÔNG tắt ngắt DMA của ADC** (dù chỉ poll buffer). ADC cấu hình `ContinuousConvMode` +
+   `DMAContinuousRequests` + DMA `CIRCULAR` với **sample-time 3 chu kỳ** → mỗi scan chỉ ~0.17µs → ngắt
+   DMA2_Stream0 nổ **~MHz**. Ngắt này (ưu tiên 5) **đè ngắt timebase TIM6 (ưu tiên thấp hơn)** → `uwTick`
+   ngừng tăng → **`HAL_Delay` treo cứng** trong `input_init`. Biểu hiện: màn đứng hình ngay khi gọi
+   `input_init`. (Đã thử tắt hẳn ngắt DMA → sinh bẫy #2.)
+
+2. **Phải kéo dài ADC sample-time (dùng 480 chu kỳ), KHÔNG để mặc 3 chu kỳ.** Nếu tắt ngắt DMA để diệt
+   bão ngắt (#1) mà vẫn để sample-time 3 chu kỳ, ADC chuyển đổi nhanh hơn DMA phục vụ → cờ **OVR
+   (overrun)** dựng → ADC **dừng hẳn** (không còn ISR để xử lý/khôi phục) → `s_adc[]` đóng băng (joystick
+   "chết" nhưng nút GPIO vẫn chạy). **Cách đúng:** đặt sample-time **480 chu kỳ** trong `input_init`
+   (`HAL_ADC_ConfigChannel`, regen-safe) → scan ~27µs, DMA dư sức phục vụ (hết overrun) **và** ngắt DMA chỉ
+   còn ~36kHz (vô hại, không treo TIM6) → **giữ nguyên ngắt DMA** để vẫn có xử lý overrun.
+
+3. **Chiều trục tuỳ đấu dây.** Trên bộ dây hiện tại **VRy đảo** → cần `JOY_INVERT_Y=1` (X không đảo). Để
+   2 cờ biên dịch `JOY_INVERT_X/Y` trong `input.c`; xác minh bằng demo ô vuông rồi lật nếu lệch.
