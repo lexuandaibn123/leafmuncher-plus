@@ -164,8 +164,25 @@ uint16_t gfx_rgb565(uint8_t r, uint8_t g, uint8_t b) {
   return (uint16_t)(((r & 0xF8u) << 8) | ((g & 0xFCu) << 3) | (b >> 3));
 }
 
+/* Hạ LTDC pixel clock 25MHz (mặc định CubeMX) → ~6.25MHz cho đúng dải ILI9341 RGB.
+ * Regen-safe: đặt ở đây thay vì sửa ltdc.c (bị CubeMX ghi đè). research §21. */
+static void ltdc_set_pixel_clock(void) {
+  RCC_PeriphCLKInitTypeDef pclk = {0};
+  pclk.PeriphClockSelection = RCC_PERIPHCLK_LTDC;
+  pclk.PLLSAI.PLLSAIN = 50;
+  pclk.PLLSAI.PLLSAIR = 4;
+  pclk.PLLSAIDivR     = RCC_PLLSAIDIVR_4;   /* 2MHz×50 /4 /4 = 6.25MHz */
+  __HAL_LTDC_DISABLE(&hltdc);
+  HAL_RCCEx_PeriphCLKConfig(&pclk);
+  __HAL_LTDC_ENABLE(&hltdc);
+}
+
 void gfx_init(void) {
-  panel_init();            /* T009: đưa ILI9341 vào chế độ RGB (không có → màn đen) */
+  ltdc_set_pixel_clock();  /* ~6.25MHz — panel ILI9341 chốt kịp (research §21) */
+  /* Bật FMC SDRAM Read Burst (RBURST) để tăng hiệu suất đọc của LTDC. */
+  FMC_Bank5_6->SDCR[0] |= FMC_SDCR1_RBURST;
+
+  panel_init();            /* T009: đưa ILI9341 vào chế độ RGB (0xB0=0xC2) */
   sdram_init_sequence();   /* SDRAM sẵn sàng trước khi ghi framebuffer */
   /* Xoá cả 2 buffer về đen để không hiện rác SDRAM lúc boot. */
   g_back = 1;
