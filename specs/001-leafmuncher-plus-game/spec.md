@@ -70,7 +70,7 @@ Có màn MENU để bắt đầu chơi, màn PAUSE để tạm dừng, và màn 
 **Acceptance Scenarios**:
 
 1. **Given** đang ở MENU, **When** đẩy joystick lên/xuống, **Then** lựa chọn đang sáng di chuyển theo; **When** nhấn nút joystick, **Then** kích hoạt lựa chọn đó.
-2. **Given** đang PLAYING, **When** nhấn nút user trên bo, **Then** chuyển PAUSED và dừng cập nhật game; PAUSED là menu gồm **Tiếp tục / Lưu & Thoát / Thoát**; chọn "Tiếp tục" → trở lại PLAYING.
+2. **Given** đang PLAYING, **When** nhấn nút user trên bo, **Then** chuyển PAUSED và dừng cập nhật game; **When** nhấn tiếp, **Then** trở lại PLAYING. *(Ở mốc M7 đây là toggle pause↔resume đơn giản; menu PAUSED đầy đủ gồm **Tiếp tục / Lưu & Thoát / Thoát (không lưu)** thuộc US7 — xem FR-028 và US7, hiện thực ở M8.)*
 3. **Given** đang GAME_OVER, **When** chọn "Chơi lại", **Then** ván mới bắt đầu từ màn 1 với điểm 0.
 
 ---
@@ -183,7 +183,7 @@ Khi tạm dừng, người chơi có thể **Lưu & Thoát** về Home; ván đa
 - **Power-up đang hiệu lực**: loại hiệu ứng + thời gian còn lại.
 - **Màn chơi (Level)**: bố cục chướng ngại + mục tiêu qua màn + tốc độ cơ bản.
 - **Phiên chơi (Game Session)**: chế độ chơi, điểm hiện tại, màn hiện tại, trạng thái máy trạng thái, sâu, danh sách lá, power-up đang hiệu lực.
-- **Chế độ chơi (Game Mode)**: `LEVEL` (campaign 5 màn) hoặc `ENDLESS` (sân mở, tăng tốc, không WIN).
+- **Chế độ chơi (Play Mode)**: `MODE_LEVEL` (campaign 5 màn) hoặc `MODE_ENDLESS` (sân mở, tăng tốc, không WIN). *(Lưu ý: trong code, type `GameMode` dành cho **trạng thái FSM** — MENU/PLAYING/…; chế độ chơi là type `PlayMode` để tránh trùng tên.)*
 - **Theme**: định danh (Khu rừng / Sa mạc) + bảng màu (sâu/lá/nền/HUD) + nền cảnh + hình vẽ chướng ngại. Thuần hiển thị.
 - **Bộ nhớ bền vững (Persistent Store)**: struct lưu qua tắt nguồn — điểm cao Vô tận, theme đã chọn (kèm magic/version để kiểm tính hợp lệ).
 - **Ván đã lưu (Saved Game)**: snapshot toàn bộ trạng thái ván của một chế độ (sâu, lá, power-up còn hiệu lực, điểm, level/tốc độ) + cờ hợp lệ; mỗi chế độ một ô lưu, giữ qua tắt nguồn.

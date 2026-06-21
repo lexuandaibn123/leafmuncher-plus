@@ -124,7 +124,7 @@ cũng coi như thắng màn.
 - [ ] T041 [P] [US2] Module `levels`: 5 bitmap chướng ngại 20×13 + `level_get`/`level_is_last` trong `Core/Src/levels.c` + `Core/Inc/levels.h` (hợp đồng [contracts/levels.md](contracts/levels.md))
 - [ ] T042 [US2] Nạp chướng ngại của level vào `occupied` khi `game_start`/lên màn trong `Core/Src/game.c` (phụ thuộc T041)
 - [ ] T043 [US2] Va chạm chướng ngại → GAME_OVER trong `game_step` (`Core/Src/game.c`) (phụ thuộc T042)
-- [ ] T044 [US2] Đạt `target_leaves` → `ST_LEVEL_COMPLETE`, lên màn (reset sâu, giữ score, `step_ms` mới), `ST_WIN` ở màn cuối; **+ nhánh sân-đầy: khi sinh lá mà không còn ô trống → phát `EV_LEVEL_DONE`/`EV_WIN` (LEVEL_COMPLETE nếu còn màn, WIN nếu màn cuối)** trong `Core/Src/game.c` (phụ thuộc T042)
+- [ ] T044 [US2] Đạt `target_leaves` → `ST_LEVEL_COMPLETE`; **chỉ sang màn kế khi nhận `IN_SELECT` (FR-021 — KHÔNG tự động)**, lúc đó reset sâu, giữ score, nạp `step_ms` màn mới; `ST_WIN` ở màn cuối; **+ nhánh sân-đầy: khi sinh lá mà không còn ô trống → phát `EV_LEVEL_DONE`/`EV_WIN` (LEVEL_COMPLETE nếu còn màn, WIN nếu màn cuối)** trong `Core/Src/game.c` (phụ thuộc T042)
 - [ ] T045 [US2] Render chướng ngại + màn LEVEL_COMPLETE + WIN trong `Core/Src/render.c` (phụ thuộc T036)
 - [ ] T046 [US2] `make -C test` xanh + `./build.sh` + on-board M4 (Acceptance US2)
 
@@ -185,6 +185,8 @@ GAME_OVER chọn chơi lại → ván mới điểm 0.
 **Checkpoint**: Toàn bộ 4 user story chạy độc lập — game hoàn chỉnh.
 
 ---
+
+> **Lưu ý đánh số:** ID **T063–T068 không dùng** (khoảng trống do mở rộng US5/6/7) — không phải task bị thiếu.
 
 ## Phase 7: User Story 5/6/7 - Chế độ chơi, Theme, Lưu & Tiếp tục ván (Priority: P2/P3) — Mốc M8
 
@@ -312,9 +314,9 @@ Setup+Foundational → US1 (demo MVP) → US2 → US3 → US4 → US5/US6 (modes
 | Mốc | Phase | FR chính |
 |---|---|---|
 | M1 | Foundational (T007–T018) | FR-018,019 (nền hiển thị/tín hiệu) |
-| M2 | Foundational (T019–T027) | kiến trúc RTOS, SC-004 |
+| M2 | Foundational (T019–T027) | kiến trúc RTOS, SC-004 (tick ổn định) |
 | M3 | US1 (T028–T038) | FR-001..006, 020 |
-| M4 | US2 (T039–T046) | FR-007,008,009 |
+| M4 | US2 (T039–T046) | FR-007,008,009; SC-004 (tăng tốc qua màn) |
 | M5–M6 | US3 (T047–T055) | FR-010,011,012,013 |
 | M7 | US4 (T056–T062) | FR-014,015,016,017 |
 | M8 | US5/US6/US7 (T069–T084) | FR-022..032 (modes, theme, lưu Flash, pause+save/resume) |
