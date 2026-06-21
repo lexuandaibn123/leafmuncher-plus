@@ -122,6 +122,10 @@ int main(void)
   const uint16_t BG    = gfx_rgb565(8, 8, 28);     /* nền xanh đêm   */
   const uint16_t SQ    = gfx_rgb565(60, 220, 90);  /* ô xanh lá      */
   const uint16_t SQ_P  = gfx_rgb565(220, 90, 60);  /* ô cam khi pause */
+  const uint16_t WHITE = gfx_rgb565(235, 235, 235);
+  const uint16_t CYAN  = gfx_rgb565(40, 200, 220);
+  const uint16_t GOLD  = gfx_rgb565(255, 215, 0);
+  const uint16_t BOX   = gfx_rgb565(30, 30, 60);   /* nền hộp PAUSED */
   const int STEP = 16;     /* bước di chuyển = 1 ô lưới (CELL) */
   const int SZ   = 20;     /* cạnh ô vuông vẽ */
   int x = (SCREEN_W - SZ) / 2;
@@ -141,6 +145,7 @@ int main(void)
   Dir cur = DIR_RIGHT;
   int moving = 0;          /* chỉ đi khi đang gạt cần (IN_DIR gần nhất) */
   int paused = 0;
+  int pause_drawn = 0;     /* overlay pause đã vẽ (vẽ 1 lần/lần vào pause) */
   uint32_t tick = 0;
 
   while (1) {
@@ -149,25 +154,42 @@ int main(void)
     else if (ev.kind == IN_NONE) { moving = 0; }
     else if (ev.kind == IN_SELECT) { x = (SCREEN_W - SZ) / 2; y = (SCREEN_H - SZ) / 2;
                                      HAL_GPIO_TogglePin(GPIOG, LD3_Pin); }
-    else if (ev.kind == IN_PAUSE)  { paused = !paused;
+    else if (ev.kind == IN_PAUSE)  { paused = !paused; pause_drawn = 0;
                                      HAL_GPIO_WritePin(GPIOG, LD4_Pin, paused ? GPIO_PIN_SET : GPIO_PIN_RESET); }
 
-    /* Di chuyển ~120ms/bước khi đang gạt cần và không pause. */
-    if (!paused && moving && (tick % 6u == 0u)) {
-      switch (cur) {
-        case DIR_RIGHT: x += STEP; break;
-        case DIR_LEFT:  x -= STEP; break;
-        case DIR_UP:    y -= STEP; break;
-        case DIR_DOWN:  y += STEP; break;
+    if (paused) {
+      /* Overlay tĩnh: blend toàn màn nặng (CPU) → CHỈ vẽ 1 lần để input vẫn nhạy. */
+      if (!pause_drawn) {
+        gfx_clear(BG);
+        gfx_text(6, 4,  "LEAFMUNCHER+", WHITE, BG);
+        gfx_text(6, 22, "T010 TEXT / T011 NO-TEAR / T012 BLEND", CYAN, BG);
+        gfx_fill_rect(x, y, SZ, SZ, SQ_P);
+        gfx_blend_rect(0, 0, SCREEN_W, SCREEN_H, gfx_rgb565(0, 0, 0), 150);  /* T012 */
+        gfx_fill_rect(118, 104, 84, 32, BOX);
+        gfx_text(128, 112, "PAUSED", GOLD, BOX);
+        gfx_present();
+        pause_drawn = 1;
       }
-      if (x < 0) x = 0; if (x > SCREEN_W - SZ) x = SCREEN_W - SZ;
-      if (y < 0) y = 0; if (y > SCREEN_H - SZ) y = SCREEN_H - SZ;
+    } else {
+      /* Di chuyển ~120ms/bước khi đang gạt cần. */
+      if (moving && (tick % 6u == 0u)) {
+        switch (cur) {
+          case DIR_RIGHT: x += STEP; break;
+          case DIR_LEFT:  x -= STEP; break;
+          case DIR_UP:    y -= STEP; break;
+          case DIR_DOWN:  y += STEP; break;
+        }
+        if (x < 0) x = 0; if (x > SCREEN_W - SZ) x = SCREEN_W - SZ;
+        if (y < 0) y = 0; if (y > SCREEN_H - SZ) y = SCREEN_H - SZ;
+      }
+      gfx_clear(BG);
+      gfx_text(6, 4,  "LEAFMUNCHER+", WHITE, BG);
+      gfx_text(6, 22, "T010 TEXT / T011 NO-TEAR / T012 BLEND", CYAN, BG);
+      gfx_fill_rect(x, y, SZ, SZ, SQ);
+      gfx_present();
     }
 
-    gfx_clear(BG);
-    gfx_fill_rect(x, y, SZ, SZ, paused ? SQ_P : SQ);
-    gfx_present();
-    HAL_Delay(20);   /* ~50Hz poll */
+    HAL_Delay(20);   /* ~50Hz poll — nhạy cho cả nút lẫn cần */
     tick++;
   }
   /* USER CODE END 2 */

@@ -5,6 +5,7 @@
 #include "ltdc.h"     /* hltdc */
 #include "spi.h"      /* hspi5 — gửi lệnh init panel ILI9341 */
 #include "main.h"     /* CSX_Pin/PC2, WRX_DCX_Pin/PD13 */
+#include "font8x16.h" /* FONT8X16[96][16] — glyph ASCII 0x20..0x7F (T010) */
 
 /* ───────────────────────── Cấu hình framebuffer ─────────────────────────
  * Panel ILI9341 native PORTRAIT: 240 (W) × 320 (H), RGB565 (2 byte/pixel).
@@ -19,6 +20,13 @@
 
 static uint32_t g_fb[2]   = { FB0_ADDR, FB1_ADDR };
 static uint8_t  g_back    = 1;   /* LTDC quét FB0 lúc đầu → vẽ vào FB1 */
+
+/* T011 — hoán đổi buffer đồng bộ VSYNC qua ngắt line LTDC (hết xé hình).
+ * Active display = dòng 4..323 (xem ltdc.c); chốt swap ngay sau dòng active cuối
+ * (AccumulatedActiveH=323) → ISR chạy trong vùng blank dọc, reload an toàn. */
+#define LTDC_SWAP_LINE  323u
+static volatile uint32_t g_swap_addr = 0;   /* địa chỉ buffer chờ đưa ra quét */
+static volatile uint8_t  g_swap_req  = 0;   /* 1 = đang chờ ISR áp dụng tại VSYNC */
 
 /* ───────────────────────── SDRAM init sequence (IS42S16400J) ─────────────
  * MX_FMC_Init() chỉ cấu hình controller; thiết bị SDRAM cần chuỗi lệnh khởi tạo
@@ -188,6 +196,9 @@ void gfx_init(void) {
   g_back = 1;
   dma2d_fill(g_fb[0], 0x0000, PANEL_W, PANEL_H, 0);
   dma2d_fill(g_fb[1], 0x0000, PANEL_W, PANEL_H, 0);
+
+  /* T011: kích hoạt ngắt line LTDC để hoán đổi buffer đúng cửa sổ VSYNC. */
+  HAL_LTDC_ProgramLineEvent(&hltdc, LTDC_SWAP_LINE);
 }
 
 void gfx_clear(uint16_t color) {
@@ -216,10 +227,89 @@ void gfx_fill_rect(int x, int y, int w, int h, uint16_t c) {
   dma2d_fill(dst, c, rw, rh, PANEL_W - rw);
 }
 
+/* T011 — gọi từ HAL_LTDC_IRQHandler (LTDC_IRQHandler ở stm32f4xx_it.c) tại dòng
+ * LTDC_SWAP_LINE, tức trong vùng blank dọc. Áp địa chỉ buffer mới bằng reload TỨC THỜI
+ * (an toàn vì không đang quét vùng hiển thị) rồi tái vũ trang ngắt cho khung kế. */
+void HAL_LTDC_LineEventCallback(LTDC_HandleTypeDef *h) {
+  if (g_swap_req) {
+    HAL_LTDC_SetAddress(h, g_swap_addr, 0);   /* set FBStartAddress + reload tức thời */
+    g_swap_req = 0u;
+  }
+  HAL_LTDC_ProgramLineEvent(h, LTDC_SWAP_LINE);
+}
+
 void gfx_present(void) {
-  /* T008 bản cơ bản: đổi địa chỉ layer rồi reload tại khoảng vblank dọc (giảm xé hình).
-   * ⚠️ T011 sẽ nâng cấp: đặt cờ swap, áp dụng trong ngắt line LTDC (đồng bộ VSYNC chính xác). */
-  HAL_LTDC_SetAddress_NoReload(&hltdc, g_fb[g_back], 0);
-  HAL_LTDC_Reload(&hltdc, LTDC_RELOAD_VERTICAL_BLANKING);
+  /* Yêu cầu đưa back buffer (vừa vẽ xong) ra quét; ISR line LTDC áp tại VSYNC.
+   * Chờ tới khi swap hoàn tất → buffer cũ mới an toàn để vẽ khung sau (hết xé). */
+  g_swap_addr = g_fb[g_back];
+  g_swap_req  = 1u;
+
+  uint32_t guard = 0;
+  while (g_swap_req && ++guard < 2000000u) { /* spin tới VSYNC (kèm chốt an toàn) */ }
+
   g_back ^= 1u;   /* buffer vừa hiển thị trở thành back buffer mới */
+}
+
+/* ───────────────────────── T010/T012 — vẽ pixel có xoay 90° ───────────────
+ * DMA2D M2M không xoay được; glyph/blit/blend làm bằng CPU, map landscape→portrait
+ * giống gfx_fill_rect (px=ly, py=SCREEN_W−1−lx). Văn bản/overlay nhỏ → chi phí thấp. */
+
+static inline void fb_put_px(int lx, int ly, uint16_t c) {
+  if (lx < 0 || lx >= SCREEN_W || ly < 0 || ly >= SCREEN_H) return;
+  uint32_t px = (uint32_t)ly;
+  uint32_t py = (uint32_t)(SCREEN_W - 1 - lx);
+  *(volatile uint16_t *)(g_fb[g_back] + (py * PANEL_W + px) * 2u) = c;
+}
+
+static inline uint16_t fb_get_px(int lx, int ly) {
+  uint32_t px = (uint32_t)ly;
+  uint32_t py = (uint32_t)(SCREEN_W - 1 - lx);
+  return *(volatile uint16_t *)(g_fb[g_back] + (py * PANEL_W + px) * 2u);
+}
+
+/* Trộn alpha 2 màu RGB565 (a=0 → bg, a=255 → fg). */
+static uint16_t blend565(uint16_t bg, uint16_t fg, uint8_t a) {
+  uint32_t ia = 255u - a;
+  uint32_t br = (bg >> 11) & 0x1Fu, bg6 = (bg >> 5) & 0x3Fu, bb = bg & 0x1Fu;
+  uint32_t fr = (fg >> 11) & 0x1Fu, fg6 = (fg >> 5) & 0x3Fu, fb = fg & 0x1Fu;
+  uint32_t r = (fr * a + br * ia) / 255u;
+  uint32_t g = (fg6 * a + bg6 * ia) / 255u;
+  uint32_t b = (fb * a + bb * ia) / 255u;
+  return (uint16_t)((r << 11) | (g << 5) | b);
+}
+
+void gfx_blit(const uint16_t *src, int x, int y, int w, int h) {
+  if (!src || w <= 0 || h <= 0) return;
+  for (int i = 0; i < h; i++)
+    for (int j = 0; j < w; j++)
+      fb_put_px(x + j, y + i, src[i * w + j]);
+}
+
+void gfx_blend_rect(int x, int y, int w, int h, uint16_t c, uint8_t a) {
+  if (w <= 0 || h <= 0) return;
+  if (a == 255u) { gfx_fill_rect(x, y, w, h, c); return; }
+  for (int i = 0; i < h; i++) {
+    int ly = y + i;
+    if (ly < 0 || ly >= SCREEN_H) continue;
+    for (int j = 0; j < w; j++) {
+      int lx = x + j;
+      if (lx < 0 || lx >= SCREEN_W) continue;
+      fb_put_px(lx, ly, blend565(fb_get_px(lx, ly), c, a));
+    }
+  }
+}
+
+void gfx_text(int x, int y, const char *s, uint16_t fg, uint16_t bg) {
+  if (!s) return;
+  for (int cx = x; *s; s++, cx += FONT_W) {
+    unsigned char ch = (unsigned char)*s;
+    if (ch >= 'a' && ch <= 'z') ch = (unsigned char)(ch - 'a' + 'A');  /* gộp về hoa */
+    if (ch < 0x20u || ch > 0x7Fu) ch = 0x20u;                          /* ngoài bảng → trống */
+    const uint8_t *glyph = FONT8X16[ch - 0x20u];
+    for (int r = 0; r < FONT_H; r++) {
+      uint8_t row = glyph[r];
+      for (int col = 0; col < FONT_W; col++)
+        fb_put_px(cx + col, y + r, (row & (0x80u >> col)) ? fg : bg);
+    }
+  }
 }
