@@ -12,8 +12,9 @@ build/
 *.exe
 
 # ───── Host unit-test binaries (test/) ─────
-test/run_tests
-test/run_tests.exe
+test/test_game
+test/test_rng
+# (mọi binary test_* không đuôi cũng đã khớp *.exe ở trên)
 
 # ───── STM32CubeIDE (nếu import vào IDE) ─────
 Debug/

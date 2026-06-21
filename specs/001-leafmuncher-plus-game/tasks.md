@@ -52,7 +52,7 @@ tạo ở Phase 7 cùng tính năng của chúng → tổng 9 module.)
 
 ### M1 — Bring-up phần cứng & gfx
 
-- [ ] T007 [P] Hiện thực `rng` thuần (xorshift32: `rng_seed`/`rng_next`/`rng_range`) trong `Core/Src/rng.c` + `Core/Inc/rng.h`
+- [x] T007 [P] Hiện thực `rng` thuần (xorshift32: `rng_seed`/`rng_next`/`rng_range`) trong `Core/Src/rng.c` + `Core/Inc/rng.h`
 - [ ] T008 [P] `gfx_init` (2 framebuffer SDRAM `0xD0000000`/`0xD0025800`, cấu hình LTDC layer RGB565), `gfx_clear`, `gfx_fill_rect` (DMA2D R2M), helper `gfx_rgb565` trong `Core/Src/gfx.c` (hợp đồng [contracts/render-gfx.md](contracts/render-gfx.md))
 - [ ] T009 **Panel ILI9341 bring-up qua SPI5**: gửi chuỗi lệnh init (interface/RGB mode, SLPOUT `0x11`, DISPON `0x29`, gamma/MADCTL) để panel vào chế độ RGB cho LTDC quét; gọi trong `gfx_init` **trước khi** bật LTDC, trong `Core/Src/gfx.c` dùng `hspi5` (phụ thuộc T008). ⚠️ Không có bước này màn sẽ đen ở M1.
 - [ ] T010 `gfx_blit` + `gfx_text` (DMA2D M2M) + bảng font 8×16 ASCII (`const` flash) trong `Core/Src/gfx.c` (phụ thuộc T008)
@@ -74,7 +74,7 @@ tạo ở Phase 7 cùng tính năng của chúng → tổng 9 module.)
 - [ ] T023 `RenderTask` chờ "frame ready", copy snapshot dưới mutex tối thiểu, gọi `render`, `gfx_present()` trong `Core/Src/apptasks.c` (phụ thuộc T011, T020)
 - [ ] T024 `render_force_full` + `render_frame` dispatch theo `mode`; vẽ lưới tĩnh + khung HUD trong `Core/Src/render.c` (hợp đồng [contracts/render-gfx.md](contracts/render-gfx.md))
 - [ ] T025 Khởi tạo 3 task từ `Core/Src/freertos.c` vùng USER CODE (gọi `tasks_start()`); **seed RNG = (bộ đếm TIM7/DWT tại input đầu tiên) XOR `input_entropy()`** rồi truyền vào `game_init` (research §13); bỏ/thay `defaultTask` (phụ thuộc T015, T017, T021–T024)
-- [ ] T026 [P] Mở rộng test host: `test/test_rng.c` (tính xác định của xorshift32) trong `test/`
+- [x] T026 [P] Mở rộng test host: `test/test_rng.c` (tính xác định của xorshift32) trong `test/`
 - [ ] T027 Demo M2: "đầu sâu" 1 ô di chuyển trên lưới ở nhịp tick cố định qua 3 task; `./build.sh` 0 error + on-board (checklist M2) (phụ thuộc T019–T025)
 
 **Checkpoint**: Nền tảng sẵn sàng — user story có thể bắt đầu.

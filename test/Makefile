@@ -1,28 +1,25 @@
 # Host unit-test cho logic thuần (gcc, KHÔNG link HAL) — Nguyên tắc II / SC-006.
-# Chạy: make -C test
+# Chạy tất cả: make -C test        | dọn: make -C test clean
+# Mỗi file test_*.c có main() riêng → build thành 1 binary riêng.
 
 CC      = gcc
 CFLAGS  = -I../Core/Inc -Wall -Wextra -std=c11 -g
 
-# Test files (thêm test_levels.c, test_rng.c… ở các phase sau).
-TESTS = test_game.c
+CORE    = ../Core/Src
 
-# Logic sources THUẦN (thêm dần khi hiện thực — Phase 2+):
-#   SRC = ../Core/Src/rng.c ../Core/Src/game.c ../Core/Src/levels.c
-# Phase 1: chưa hiện thực hàm nào nên để trống (test chỉ kiểm hằng số/kiểu).
-SRC =
+# Mỗi binary = 1 file test + các logic source THUẦN cần thiết.
+#   (thêm test_levels.c, test_game.c… link game.c/levels.c ở các phase sau)
+all: test_game test_rng
 
-BIN = run_tests
+test_game: test_game.c
+	$(CC) $(CFLAGS) $^ -o $@
+	./$@
 
-all: run
-
-$(BIN): $(TESTS) $(SRC)
-	$(CC) $(CFLAGS) $(TESTS) $(SRC) -o $(BIN)
-
-run: $(BIN)
-	./$(BIN)
+test_rng: test_rng.c $(CORE)/rng.c
+	$(CC) $(CFLAGS) $^ -o $@
+	./$@
 
 clean:
-	rm -f $(BIN) $(BIN).exe
+	rm -f test_game test_game.exe test_rng test_rng.exe
 
-.PHONY: all run clean
+.PHONY: all clean test_game test_rng
