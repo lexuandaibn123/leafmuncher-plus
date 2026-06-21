@@ -31,16 +31,16 @@ Foundational tương ứng mốc **M1–M2**; US1=M3, US2=M4, US3=M5–M6, US4=M
 **Purpose**: Tạo khung 7 module core + harness test host. Scaffold CubeMX đã có sẵn. (`theme`/`store`
 tạo ở Phase 7 cùng tính năng của chúng → tổng 9 module.)
 
-- [ ] T001 [P] Tạo skeleton header (include guard, rỗng) cho 7 module trong `Core/Inc/`: `gfx.h`, `input.h`, `game.h`, `levels.h`, `render.h`, `rng.h`, `apptasks.h`
-- [ ] T002 [P] Tạo skeleton source (include header, stub rỗng) cho 7 module trong `Core/Src/`: `gfx.c`, `input.c`, `game.c`, `levels.c`, `render.c`, `rng.c`, `apptasks.c`
+- [x] T001 [P] Tạo skeleton header (include guard, rỗng) cho 7 module trong `Core/Inc/`: `gfx.h`, `input.h`, `game.h`, `levels.h`, `render.h`, `rng.h`, `apptasks.h`
+- [x] T002 [P] Tạo skeleton source (include header, stub rỗng) cho 7 module trong `Core/Src/`: `gfx.c`, `input.c`, `game.c`, `levels.c`, `render.c`, `rng.c`, `apptasks.c`
 
 > ⚠️ **Tên file `apptasks.c/.h`** (KHÔNG đặt `tasks.c`): Makefile CubeMX sinh object theo `notdir`, nên
 > một file tên `tasks.c` sẽ đè `build/tasks.o` của FreeRTOS (`Middlewares/.../Source/tasks.c`) → thiếu
 > symbol `vTaskSwitchContext`/`pxCurrentTCB`… Module vẫn gọi là **`tasks`**; chỉ tên file đổi để tránh trùng.
-- [ ] T003 Khai báo kiểu & hằng số dùng chung từ [data-model.md](data-model.md) + [research.md](research.md) (Dir, Cell, GameMode, LeafType, PowerType, InputEvent, GameEvents, COLS/ROWS/CELL/HUD_H, STEP_MS[], LEN_*, ...) trong `Core/Inc/game.h` (phụ thuộc T001)
-- [ ] T004 [P] Tạo harness test host: `test/Makefile` (gcc, include `Core/Inc`), `test/test_game.c` với 1 assert tối thiểu; xác nhận `make -C test` chạy
-- [ ] T005 Thêm 7 source mới vào `C_SOURCES` của `Makefile` (CubeMX) để firmware biên dịch chúng; ghi chú phải thêm lại sau mỗi lần CubeMX Generate; chạy `./build.sh` 0 error
-- [ ] T006 [P] Tạo `docs/ui/ui-design.md` từ [research.md §15](research.md) (layout 320×240/HUD, bảng màu, font 8×16, tóm tắt API `gfx`)
+- [x] T003 Khai báo kiểu & hằng số dùng chung từ [data-model.md](data-model.md) + [research.md](research.md) (Dir, Cell, GameMode, LeafType, PowerType, InputEvent, GameEvents, COLS/ROWS/CELL/HUD_H, STEP_MS[], LEN_*, ...) trong `Core/Inc/game.h` (phụ thuộc T001)
+- [x] T004 [P] Tạo harness test host: `test/Makefile` (gcc, include `Core/Inc`), `test/test_game.c` với 1 assert tối thiểu; xác nhận `make -C test` chạy
+- [x] T005 Thêm 7 source mới vào `C_SOURCES` của `Makefile` (CubeMX) để firmware biên dịch chúng; ghi chú phải thêm lại sau mỗi lần CubeMX Generate; chạy `./build.sh` 0 error
+- [x] T006 [P] Tạo `docs/ui/ui-design.md` từ [research.md §15](research.md) (layout 320×240/HUD, bảng màu, font 8×16, tóm tắt API `gfx`)
 
 ---
 
