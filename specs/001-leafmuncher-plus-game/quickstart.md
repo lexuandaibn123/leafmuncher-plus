@@ -29,7 +29,7 @@ make -C test        # build & chạy unit-test logic thuần trên PC (SC-006)
 - [ ] **Panel ILI9341 hiển thị** (init qua SPI5 thành công) — màn sáng, có nền + vài ô màu, **không nhấp nháy**.
 - [ ] Gạt joystick 4 hướng → 1 ô vuông di chuyển tương ứng; thả về giữa → ô đứng yên.
 - [ ] **LED xanh nhấp nháy heartbeat đều (~1Hz) do Timer TIM7** (chứng tỏ Timer + interrupt chạy).
-- [ ] Nhấn nút joystick / nút B1 → LED/state đổi. LED xanh = OK.
+- [ ] Nhấn nút joystick (JOY_SW) → state đổi (demo: toggle pause + LED đỏ). LED xanh heartbeat = OK.
 - [ ] Rút joystick ra → ô đứng yên, **không treo/không reset**.
 
 ### M2 — Khung engine
@@ -73,7 +73,7 @@ Bám FR-012 + [contracts/game-core.md](contracts/game-core.md).
 ### M7 — Menu / Pause / Polish
 Bám US4.
 - [ ] MENU: gạt lên/xuống đổi mục sáng; nút joystick xác nhận → vào PLAYING.
-- [ ] PLAYING: nhấn nút B1 → PAUSED (game dừng, màn mờ + hộp "PAUSED"); nhấn tiếp → tiếp tục.
+- [ ] PLAYING: nhấn nút JOY_SW → PAUSED (game dừng, màn mờ + hộp "PAUSED"); nhấn tiếp → tiếp tục.
 - [ ] GAME_OVER: chọn "Chơi lại" → ván mới từ màn 1, **điểm 0**.
 
 ### M8 — Chế độ chơi, Theme, Lưu bền vững, Pause & Tiếp tục ván
@@ -84,7 +84,7 @@ Bám US5/US6/US7 + [contracts/theme.md](contracts/theme.md), [contracts/store.md
 - [ ] **Tắt nguồn rồi bật lại** → điểm cao Vô tận **và** theme đã chọn **vẫn còn** (đọc từ Flash).
 - [ ] Lần chạy đầu / Flash trống → nạp mặc định (theme Rừng, điểm cao 0), không lỗi.
 - [ ] `make -C test`: ramp tốc Endless + clamp sàn + không WIN; chế độ Màn không đổi hành vi.
-- [ ] PLAYING → nút B1 → PAUSED hiện menu **Tiếp tục / Lưu & Thoát / Thoát**; "Tiếp tục" → PLAYING.
+- [ ] PLAYING → nút JOY_SW → PAUSED hiện menu **Tiếp tục / Lưu & Thoát / Thoát**; "Tiếp tục" → PLAYING.
 - [ ] PAUSED → **Lưu & Thoát** → về MENU; **tắt nguồn → bật lại** → MENU có **"Tiếp tục"** → khôi phục đúng ván (sâu/điểm/level/theme).
 - [ ] Ván tiếp tục chơi tới **GAME_OVER/WIN** → ô lưu **tự xóa** (MENU ẩn "Tiếp tục").
 - [ ] Cả 2 mode đều lưu/tiếp tục được, **độc lập** nhau; "Thoát (không lưu)" không xóa ô lưu cũ.
