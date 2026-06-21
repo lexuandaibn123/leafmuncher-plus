@@ -7,4 +7,7 @@
 
 #include "game.h"
 
+void render_force_full(const GameState *gs);             /* vẽ lại toàn khung (khi đổi state) */
+void render_frame(const GameState *gs, GameEvents ev);   /* vẽ theo gs->mode mỗi khung */
+
 #endif /* RENDER_H */

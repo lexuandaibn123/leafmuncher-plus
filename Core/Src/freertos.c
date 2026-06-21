@@ -25,7 +25,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "apptasks.h"   /* T025 — tasks_start() */
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -141,7 +141,7 @@ void MX_FREERTOS_Init(void) {
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
-  /* add threads, ... */
+  tasks_start();   /* T025 — 3 task game (Input/Game/Render) + queue/mutex/semaphore */
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
@@ -162,11 +162,9 @@ void StartDefaultTask(void *argument)
   /* init code for USB_HOST */
   MX_USB_HOST_Init();
   /* USER CODE BEGIN StartDefaultTask */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+  /* T025 — không dùng defaultTask (USB host không dùng cho game). Thoát để nhường
+   * ~16KB stack lại cho heap; 3 task game đã tạo trong tasks_start(). */
+  osThreadExit();
   /* USER CODE END StartDefaultTask */
 }
 
