@@ -14,6 +14,16 @@ static int cell_in_grid(int c, int r)
   return (c >= 0 && c < COLS && r >= 0 && r < ROWS);
 }
 
+static Dir dir_opposite(Dir d)
+{
+  switch (d) {
+    case DIR_UP:   return DIR_DOWN;
+    case DIR_DOWN: return DIR_UP;
+    case DIR_LEFT: return DIR_RIGHT;
+    default:       return DIR_LEFT;   /* DIR_RIGHT */
+  }
+}
+
 /* Dựng lại occupied[][] từ thân sâu (+ chướng ngại màn ở T041). */
 static void grid_rebuild(GameState *gs)
 {
@@ -98,4 +108,45 @@ LeafType game_cell_content(const GameState *gs, Cell c)
 uint16_t game_step_ms(const GameState *gs)
 {
   return gs->step_ms;          /* tick hiệu dụng; hệ số power-up áp ở game_step (T034) */
+}
+
+/* ===== game_step — M2 TỐI THIỂU: chỉ dời sâu 1 ô mỗi tick =====
+ * Đủ cho demo M2 (T027): đầu sâu di chuyển trên lưới qua 3 task FreeRTOS.
+ * Luật đầy đủ (ăn lá/va chạm Game Over/power-up/qua màn) hiện thực ở T032–T035 (US1).
+ * Hành vi M2: áp hướng input (lọc 180°), dời sâu 1 ô; chạm biên → đứng yên (chưa Game Over). */
+GameEvents game_step(GameState *gs, InputEvent in, uint16_t dt_ms)
+{
+  (void)dt_ms;
+  if (gs->mode != ST_PLAYING) {
+    return 0u;
+  }
+  Worm *w = &gs->worm;
+  GameEvents ev = 0u;
+
+  if (in.kind == IN_DIR) {
+    if (in.dir != dir_opposite(w->dir)) {
+      w->next_dir = in.dir;
+    } else {
+      ev |= EV_DIR_BLOCKED;          /* chặn quay đầu 180° (FR-003) */
+    }
+  }
+  w->dir = w->next_dir;
+
+  Cell nh = w->body[w->head_idx];
+  switch (w->dir) {
+    case DIR_RIGHT: nh.c++; break;
+    case DIR_LEFT:  nh.c--; break;
+    case DIR_UP:    nh.r--; break;
+    case DIR_DOWN:  nh.r++; break;
+  }
+  if (!cell_in_grid(nh.c, nh.r)) {
+    return ev;                       /* chạm biên: M2 đứng yên (T033 → Game Over) */
+  }
+
+  /* Đẩy đầu mới vào ring buffer; len giữ nguyên → đuôi tự rớt (chưa mọc). */
+  uint16_t new_head = (uint16_t)((w->head_idx + WORM_CAP - 1u) % WORM_CAP);
+  w->body[new_head] = nh;
+  w->head_idx = new_head;
+  grid_rebuild(gs);
+  return ev | EV_MOVED;
 }

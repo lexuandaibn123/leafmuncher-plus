@@ -68,14 +68,14 @@ tạo ở Phase 7 cùng tính năng của chúng → tổng 9 module.)
 ### M2 — Khung engine FreeRTOS
 
 - [x] T019 Định nghĩa `GameState` (worm ring buffer, `occupied[13][20]`, lá, power, score, level) + `game_init`/`game_start` + query đọc-chỉ `game_cell_content`/`game_step_ms` (toàn bộ API thuần của `game.h`), trong `Core/Src/game.c` + `Core/Inc/game.h` (data-model §2.5; hợp đồng [contracts/game-core.md](contracts/game-core.md)) (phụ thuộc T003 — dùng kiểu/hằng do T003 khai báo trong cùng `game.h`) — **host test pass** (`test_game.c`: init MENU/start PLAYING, sâu LEN_START giữa sân, occupied=thân, query lá/oob, tính xác định cùng seed); `STEP_MS[]`/`TARGET_LEAVES[]` định nghĩa trong `levels.c` (lát cắt T041)
-- [ ] T020 Tạo đối tượng đồng bộ: queue input (sâu 4, overwrite), mutex snapshot state, semaphore/notification "frame ready" trong `Core/Src/apptasks.c` (research §12)
-- [ ] T021 `InputTask` @50Hz đọc `input_poll` → đẩy `InputEvent` vào queue trong `Core/Src/apptasks.c` (phụ thuộc T014, T020)
-- [ ] T022 `GameTask` `vTaskDelayUntil(step_ms)`, lấy input mới nhất, gọi `game_step`, ghi snapshot dưới mutex, báo render trong `Core/Src/apptasks.c` (phụ thuộc T019, T020)
-- [ ] T023 `RenderTask` chờ "frame ready", copy snapshot dưới mutex tối thiểu, gọi `render`, `gfx_present()` trong `Core/Src/apptasks.c` (phụ thuộc T011, T020)
-- [ ] T024 `render_force_full` + `render_frame` dispatch theo `mode`; vẽ lưới tĩnh + khung HUD trong `Core/Src/render.c` (hợp đồng [contracts/render-gfx.md](contracts/render-gfx.md))
-- [ ] T025 Khởi tạo 3 task từ `Core/Src/freertos.c` vùng USER CODE (gọi `tasks_start()`); **seed RNG = (bộ đếm TIM7/DWT tại input đầu tiên) XOR `input_entropy()`** rồi truyền vào `game_init` (research §13); bỏ/thay `defaultTask` (phụ thuộc T015, T017, T021–T024)
+- [x] T020 Tạo đối tượng đồng bộ: queue input (sâu 4, overwrite), mutex snapshot state, semaphore/notification "frame ready" trong `Core/Src/apptasks.c` (research §12) — `osMessageQueueNew(4)` + `input_q_put` ghi đè cũ, `osMutexNew`, `osSemaphoreNew(1,0)`
+- [x] T021 `InputTask` @50Hz đọc `input_poll` → đẩy `InputEvent` vào queue trong `Core/Src/apptasks.c` (phụ thuộc T014, T020) — `osDelayUntil` 20ms, chỉ đẩy event ≠ IN_NONE
+- [x] T022 `GameTask` `vTaskDelayUntil(step_ms)`, lấy input mới nhất, gọi `game_step`, ghi snapshot dưới mutex, báo render trong `Core/Src/apptasks.c` (phụ thuộc T019, T020) — `input_q_latest` rút lệnh mới nhất; `game_step` M2 tối thiểu (dời 1 ô, lọc 180°, T032 mở rộng)
+- [x] T023 `RenderTask` chờ "frame ready", copy snapshot dưới mutex tối thiểu, gọi `render`, `gfx_present()` trong `Core/Src/apptasks.c` (phụ thuộc T011, T020) — copy `GameState` dưới mutex rồi vẽ ngoài khoá
+- [x] T024 `render_force_full` + `render_frame` dispatch theo `mode`; vẽ lưới tĩnh + khung HUD trong `Core/Src/render.c` (hợp đồng [contracts/render-gfx.md](contracts/render-gfx.md)) — HUD SCORE/LV + sân + sâu (đầu+mắt/thân); M2 vẽ đủ mỗi khung, dirty-rect ở T036
+- [x] T025 Khởi tạo 3 task từ `Core/Src/freertos.c` vùng USER CODE (gọi `tasks_start()`); **seed RNG = (bộ đếm TIM7/DWT tại input đầu tiên) XOR `input_entropy()`** rồi truyền vào `game_init` (research §13); bỏ/thay `defaultTask` (phụ thuộc T015, T017, T021–T024) — `tasks_start()` seed = `__HAL_TIM_GET_COUNTER(htim7)` XOR `input_entropy()`; defaultTask `osThreadExit()`
 - [x] T026 [P] Mở rộng test host: `test/test_rng.c` (tính xác định của xorshift32) trong `test/`
-- [ ] T027 Demo M2: "đầu sâu" 1 ô di chuyển trên lưới ở nhịp tick cố định qua 3 task; `./build.sh` 0 error + on-board (checklist M2) (phụ thuộc T019–T025)
+- [x] T027 Demo M2: "đầu sâu" 1 ô di chuyển trên lưới ở nhịp tick cố định qua 3 task; `./build.sh` 0 error + on-board (checklist M2) (phụ thuộc T019–T025) — **nghiệm thu on-board**: sâu 3 ô bò ~180ms/ô qua 3 task, joystick đổi 4 hướng + lọc 180°, HUD + heartbeat song song, không xé hình
 
 **Checkpoint**: Nền tảng sẵn sàng — user story có thể bắt đầu.
 
