@@ -9,6 +9,11 @@ build/
 *.list
 *.lst
 *.su
+*.exe
+
+# ───── Host unit-test binaries (test/) ─────
+test/run_tests
+test/run_tests.exe
 
 # ───── STM32CubeIDE (nếu import vào IDE) ─────
 Debug/

@@ -97,7 +97,7 @@ Core/
 │   ├── rng.h               #   [tự viết] PRNG thuần
 │   ├── theme.h             #   [tự viết] bảng màu + sprite theo theme (cosmetic)
 │   ├── store.h             #   [tự viết] lưu bền vững (Flash): điểm cao + theme
-│   └── tasks.h             #   [tự viết] khởi tạo 3 task + đối tượng đồng bộ
+│   └── apptasks.h          #   [tự viết] khởi tạo 3 task + đối tượng đồng bộ (tên tránh trùng FreeRTOS tasks.c)
 ├── Src/                    # CubeMX (main.c, freertos.c, adc.c, ltdc.c, dma2d.c, fmc.c…)
 │   ├── gfx.c               #   [tự viết] DMA2D fill/blit/blend, swap VSYNC
 │   ├── input.c             #   [tự viết] hiệu chỉnh center + deadzone + debounce
@@ -107,7 +107,7 @@ Core/
 │   ├── rng.c               #   [tự viết] THUẦN — xorshift32
 │   ├── theme.c             #   [tự viết] 2 theme (Rừng/Sa mạc) — màu + sprite chướng ngại
 │   ├── store.c             #   [tự viết] HAL_FLASH erase/program 1 sector + crc + fallback
-│   └── tasks.c             #   [tự viết] InputTask/GameTask/RenderTask + queue/mutex/sem
+│   └── apptasks.c          #   [tự viết] InputTask/GameTask/RenderTask + queue/mutex/sem (tránh trùng FreeRTOS tasks.c)
 └── (assets)               #   font 8×16 + bảng màu (const trong flash)
 
 Drivers/ Middlewares/       # HAL + CMSIS + FreeRTOS (KHÔNG sửa)

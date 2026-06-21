@@ -35,6 +35,8 @@ BUILD_DIR = build
 # source
 ######################################
 # C sources
+# NOTE: các module game tự viết (rng/gfx/input/game/levels/render/tasks) nằm ở CUỐI danh sách.
+#       Sau mỗi lần CubeMX "Generate Code", PHẢI thêm lại khối đó (CubeMX ghi đè Makefile này).
 C_SOURCES =  \
 Core/Src/main.c \
 Core/Src/gpio.c \
@@ -106,7 +108,14 @@ Middlewares/ST/STM32_USB_Host_Library/Core/Src/usbh_pipes.c \
 Middlewares/ST/STM32_USB_Host_Library/Class/CDC/Src/usbh_cdc.c \
 Core/Src/sysmem.c \
 Core/Src/syscalls.c \
-Core/Src/dma.c
+Core/Src/dma.c \
+Core/Src/rng.c \
+Core/Src/gfx.c \
+Core/Src/input.c \
+Core/Src/game.c \
+Core/Src/levels.c \
+Core/Src/render.c \
+Core/Src/apptasks.c
 
 # ASM sources
 ASM_SOURCES =  \
