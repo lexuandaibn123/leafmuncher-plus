@@ -53,8 +53,8 @@ tạo ở Phase 7 cùng tính năng của chúng → tổng 9 module.)
 ### M1 — Bring-up phần cứng & gfx
 
 - [x] T007 [P] Hiện thực `rng` thuần (xorshift32: `rng_seed`/`rng_next`/`rng_range`) trong `Core/Src/rng.c` + `Core/Inc/rng.h`
-- [ ] T008 [P] `gfx_init` (2 framebuffer SDRAM `0xD0000000`/`0xD0025800`, cấu hình LTDC layer RGB565), `gfx_clear`, `gfx_fill_rect` (DMA2D R2M), helper `gfx_rgb565` trong `Core/Src/gfx.c` (hợp đồng [contracts/render-gfx.md](contracts/render-gfx.md))
-- [ ] T009 **Panel ILI9341 bring-up qua SPI5**: gửi chuỗi lệnh init (interface/RGB mode, SLPOUT `0x11`, DISPON `0x29`, gamma/MADCTL) để panel vào chế độ RGB cho LTDC quét; gọi trong `gfx_init` **trước khi** bật LTDC, trong `Core/Src/gfx.c` dùng `hspi5` (phụ thuộc T008). ⚠️ Không có bước này màn sẽ đen ở M1.
+- [x] T008 [P] `gfx_init` (2 framebuffer SDRAM `0xD0000000`/`0xD0025800`, cấu hình LTDC layer RGB565), `gfx_clear`, `gfx_fill_rect` (DMA2D R2M), helper `gfx_rgb565` trong `Core/Src/gfx.c` (hợp đồng [contracts/render-gfx.md](contracts/render-gfx.md)) — *gfx_init kèm chuỗi init SDRAM (MX_FMC_Init thiếu); xoay 90° landscape→portrait trong phần mềm; gfx_present bản cơ bản (T011 nâng cấp)*
+- [x] T009 **Panel ILI9341 bring-up qua SPI5**: gửi chuỗi lệnh init (interface/RGB mode, SLPOUT `0x11`, DISPON `0x29`, gamma/MADCTL) để panel vào chế độ RGB cho LTDC quét; gọi trong `gfx_init` **trước khi** bật LTDC, trong `Core/Src/gfx.c` dùng `hspi5` (phụ thuộc T008). ⚠️ Không có bước này màn sẽ đen ở M1. — *⏳ chờ nghiệm thu trên bo (M1/T018)*
 - [ ] T010 `gfx_blit` + `gfx_text` (DMA2D M2M) + bảng font 8×16 ASCII (`const` flash) trong `Core/Src/gfx.c` (phụ thuộc T008)
 - [ ] T011 `gfx_present` + swap double-buffer đồng bộ VSYNC qua ngắt line LTDC (`HAL_LTDC_Reload`/line ISR) trong `Core/Src/gfx.c` và call-site trong `Core/Src/stm32f4xx_it.c` vùng USER CODE (phụ thuộc T008)
 - [ ] T012 `gfx_blend_rect` (DMA2D M2M_BLEND) cho overlay mờ trong `Core/Src/gfx.c` (phụ thuộc T008)
