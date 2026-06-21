@@ -7,6 +7,9 @@ Luật dự án: [`.specify/memory/constitution.md`](.specify/memory/constitutio
 Spec: [`specs/001-leafmuncher-plus-game/spec.md`](specs/001-leafmuncher-plus-game/spec.md).
 
 <!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
+**Kế hoạch hiện tại:** [`specs/001-leafmuncher-plus-game/plan.md`](specs/001-leafmuncher-plus-game/plan.md)
+— kèm [`research.md`](specs/001-leafmuncher-plus-game/research.md) (hằng số & quyết định),
+[`data-model.md`](specs/001-leafmuncher-plus-game/data-model.md),
+[`contracts/`](specs/001-leafmuncher-plus-game/contracts/),
+[`quickstart.md`](specs/001-leafmuncher-plus-game/quickstart.md).
 <!-- SPECKIT END -->
