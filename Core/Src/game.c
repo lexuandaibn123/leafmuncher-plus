@@ -1,5 +1,6 @@
 #include "game.h"
 #include "rng.h"
+#include "levels.h"
 #include <string.h>
 
 /* game — logic thuần (Nguyên tắc II: KHÔNG gọi HAL/CMSIS/FreeRTOS).
@@ -24,11 +25,16 @@ static Dir dir_opposite(Dir d)
   }
 }
 
-/* Dựng lại occupied[][] từ thân sâu (+ chướng ngại màn ở T041). */
+/* Dựng lại occupied[][] = chướng ngại màn (T042) + thân sâu. */
 static void grid_rebuild(GameState *gs)
 {
   memset(gs->occupied, 0, sizeof gs->occupied);
-  /* TODO(T041): nạp bitmap chướng ngại của màn vào occupied trước khi đánh dấu thân. */
+  const Level *lv = level_get(gs->level_idx);
+  if (lv != 0 && lv->obstacles != 0) {
+    for (int r = 0; r < ROWS; r++)
+      for (int c = 0; c < COLS; c++)
+        if (lv->obstacles[r][c]) gs->occupied[r][c] = 1u;
+  }
   for (uint16_t k = 0; k < gs->worm.len; k++) {
     uint16_t i = (uint16_t)((gs->worm.head_idx + k) % WORM_CAP);
     Cell s = gs->worm.body[i];
@@ -136,6 +142,24 @@ void game_start(GameState *gs)
   gs->mode = ST_PLAYING;
 }
 
+/* T044: lên màn kế — GIỮ score, reset sâu/lá/leaves_eaten, nạp step_ms & chướng ngại
+ * màn mới, sinh lá, vào PLAYING. Gọi từ game_input_ui khi LEVEL_COMPLETE + IN_SELECT. */
+static void advance_level(GameState *gs)
+{
+  gs->level_idx++;
+  const Level *lv = level_get(gs->level_idx);
+  gs->step_ms = (lv != 0) ? lv->step_ms : STEP_MS[LEVELS - 1];
+  gs->leaves_eaten = 0u;
+  gs->leaf_normal.type = LEAF_NONE;
+  gs->leaf_gold.type   = LEAF_NONE;
+  gs->leaf_poison.type = LEAF_NONE;
+  gs->leaf_pu.type     = LEAF_NONE;
+  worm_spawn_center(gs);
+  grid_rebuild(gs);                                    /* nạp chướng ngại màn mới + thân */
+  spawn_leaf(gs, &gs->leaf_normal, LEAF_NORMAL, PU_NONE);
+  gs->mode = ST_PLAYING;
+}
+
 LeafType game_cell_content(const GameState *gs, Cell c)
 {
   if (!cell_in_grid(c.c, c.r)) {
@@ -235,22 +259,45 @@ GameEvents game_step(GameState *gs, InputEvent in, uint16_t dt_ms)
     gs->score += SCORE_LEAF;
     gs->leaves_eaten++;
     gs->leaf_normal.type = LEAF_NONE;
-    spawn_leaf(gs, &gs->leaf_normal, LEAF_NORMAL, PU_NONE);
+    int placed = spawn_leaf(gs, &gs->leaf_normal, LEAF_NORMAL, PU_NONE);
     ev |= EV_ATE_NORMAL;
-    /* Qua màn khi leaves_eaten ≥ TARGET_LEAVES[level]: LEVEL_COMPLETE/WIN ở US2 (T040). */
+
+    /* T044: qua màn khi đạt target HOẶC sân đầy (không còn ô sinh lá → coi như thắng màn).
+     * KHÔNG tự sang màn — chờ IN_SELECT ở game_input_ui (FR-021). */
+    const Level *lv = level_get(gs->level_idx);
+    uint16_t target = (lv != 0) ? lv->target_leaves : TARGET_LEAVES[gs->level_idx];
+    if (gs->leaves_eaten >= target || placed == 0) {
+      if (level_is_last(gs->level_idx)) {
+        gs->mode = ST_WIN;
+        ev |= EV_WIN;
+      } else {
+        gs->mode = ST_LEVEL_COMPLETE;
+        ev |= EV_LEVEL_DONE;
+      }
+    }
   }
   return ev;
 }
 
-/* ===== game_input_ui — điều hướng ngoài ST_PLAYING (lát M3) =====
- * M3 tối thiểu: ở GAME_OVER, nút chính (IN_SELECT) → chơi lại từ màn 0.
- * MENU/PAUSED/WIN/LEVEL_COMPLETE đầy đủ ở US4 (T057). */
+/* ===== game_input_ui — điều hướng ngoài ST_PLAYING =====
+ * Nút chính (IN_SELECT) theo trạng thái:
+ *   LEVEL_COMPLETE → lên màn kế (giữ score) (T044, FR-021)
+ *   WIN / GAME_OVER → chơi lại từ màn 0
+ * MENU/PAUSED đầy đủ ở US4 (T057). */
 void game_input_ui(GameState *gs, InputEvent in)
 {
   if (in.kind != IN_SELECT) {
     return;
   }
-  if (gs->mode == ST_GAME_OVER) {
-    game_start(gs);                          /* RNG giữ state → ván mới khác biệt */
+  switch (gs->mode) {
+    case ST_LEVEL_COMPLETE:
+      advance_level(gs);                     /* sang màn kế, nhanh hơn, giữ điểm */
+      break;
+    case ST_WIN:
+    case ST_GAME_OVER:
+      game_start(gs);                        /* RNG giữ state → ván mới khác biệt */
+      break;
+    default:
+      break;
   }
 }

@@ -1,5 +1,6 @@
 #include "render.h"
 #include "gfx.h"
+#include "levels.h"   /* level_get → vẽ chướng ngại màn (T045) */
 
 /* render — ánh xạ GameState → lệnh vẽ gfx (chỉ gọi gfx_*, KHÔNG chạm HAL — NT IV/V).
  * T024 (M2): vẽ HUD + sân + sâu, dispatch theo `mode`. M2 vẽ lại toàn khung mỗi tick
@@ -52,6 +53,15 @@ static void draw_playing(const GameState *gs)
   /* Nền sân. */
   gfx_fill_rect(0, HUD_H, SCREEN_W, SCREEN_H - HUD_H, gfx_rgb565(11, 26, 11));
 
+  /* Chướng ngại của màn (T045) — màu xám đá. */
+  const Level *lv = level_get(gs->level_idx);
+  if (lv != 0 && lv->obstacles != 0) {
+    uint16_t ob = gfx_rgb565(95, 95, 110);
+    for (int r = 0; r < ROWS; r++)
+      for (int c = 0; c < COLS; c++)
+        if (lv->obstacles[r][c]) cell_fill(c, r, ob);
+  }
+
   /* Lá (research §15). */
   draw_leaf(&gs->leaf_normal, gfx_rgb565(46, 204, 64));
   draw_leaf(&gs->leaf_gold,   gfx_rgb565(255, 215, 0));
@@ -93,6 +103,25 @@ static void draw_game_over(const GameState *gs)
   gfx_text((SCREEN_W - 12 * 8) / 2, 150, "PRESS BUTTON", gfx_rgb565(180, 180, 180), bg);
 }
 
+/* T045: banner chữ giữa màn (LEVEL_COMPLETE/WIN) — tiêu đề + điểm + nhắc bấm. */
+static void draw_banner(const GameState *gs, const char *title, int title_len,
+                        uint16_t title_col, uint16_t bg, const char *hint, int hint_len)
+{
+  uint16_t fg = gfx_rgb565(240, 240, 240);
+  gfx_clear(bg);
+  gfx_text((SCREEN_W - title_len * 8) / 2, 70, title, title_col, bg);
+
+  char line[20];
+  int p = 0;
+  const char *s = "SCORE ";
+  while (*s) line[p++] = *s++;
+  p += put_u32(line + p, gs->score);
+  line[p] = 0;
+  gfx_text((SCREEN_W - p * 8) / 2, 110, line, fg, bg);
+
+  gfx_text((SCREEN_W - hint_len * 8) / 2, 150, hint, gfx_rgb565(180, 180, 180), bg);
+}
+
 static void draw_by_mode(const GameState *gs)
 {
   switch (gs->mode) {
@@ -103,6 +132,14 @@ static void draw_by_mode(const GameState *gs)
       break;
     case ST_GAME_OVER:
       draw_game_over(gs);
+      break;
+    case ST_LEVEL_COMPLETE:
+      draw_banner(gs, "LEVEL CLEAR", 11, gfx_rgb565(120, 230, 120),
+                  gfx_rgb565(8, 24, 8), "PRESS: NEXT", 11);
+      break;
+    case ST_WIN:
+      draw_banner(gs, "YOU WIN!", 8, gfx_rgb565(255, 215, 0),
+                  gfx_rgb565(8, 8, 28), "PRESS BUTTON", 12);
       break;
     default:
       /* MENU/LEVEL_COMPLETE/WIN — M2 tối thiểu: nền + nhãn (đầy đủ ở T060/US4). */

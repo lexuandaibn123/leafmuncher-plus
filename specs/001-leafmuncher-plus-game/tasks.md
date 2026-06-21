@@ -120,17 +120,17 @@ cũng coi như thắng màn.
 
 ### Tests for User Story 2 (host) ⚠️
 
-- [ ] T039 [P] [US2] Test bất biến level (target>0, `step_ms` giảm dần, ô khởi đầu trống, đủ ô trống) trong `test/test_levels.c`
-- [ ] T040 [US2] Test va chạm chướng ngại → GAME_OVER; level-complete; tăng tốc; WIN màn cuối; **sân đầy (hết ô trống sinh lá) → thắng màn** (LEVEL_COMPLETE/WIN); trong `test/test_game.c`
+- [x] T039 [P] [US2] Test bất biến level (target>0, `step_ms` giảm dần, ô khởi đầu trống, đủ ô trống) trong `test/test_levels.c` — + đồng nhất với STEP_MS/TARGET_LEAVES, `level_get` OOB→NULL
+- [x] T040 [US2] Test va chạm chướng ngại → GAME_OVER; level-complete; tăng tốc; WIN màn cuối; **sân đầy (259 đốt, hết ô trống sinh lá) → thắng màn**; trong `test/test_game.c`
 
 ### Implementation for User Story 2
 
-- [ ] T041 [P] [US2] Module `levels`: 5 bitmap chướng ngại 20×13 + `level_get`/`level_is_last` trong `Core/Src/levels.c` + `Core/Inc/levels.h` (hợp đồng [contracts/levels.md](contracts/levels.md))
-- [ ] T042 [US2] Nạp chướng ngại của level vào `occupied` khi `game_start`/lên màn trong `Core/Src/game.c` (phụ thuộc T041)
-- [ ] T043 [US2] Va chạm chướng ngại → GAME_OVER trong `game_step` (`Core/Src/game.c`) (phụ thuộc T042)
-- [ ] T044 [US2] Đạt `target_leaves` → `ST_LEVEL_COMPLETE`; **chỉ sang màn kế khi nhận `IN_SELECT` (FR-021 — KHÔNG tự động)**, lúc đó reset sâu, giữ score, nạp `step_ms` màn mới; `ST_WIN` ở màn cuối; **+ nhánh sân-đầy: khi sinh lá mà không còn ô trống → phát `EV_LEVEL_DONE`/`EV_WIN` (LEVEL_COMPLETE nếu còn màn, WIN nếu màn cuối)** trong `Core/Src/game.c` (phụ thuộc T042)
-- [ ] T045 [US2] Render chướng ngại + màn LEVEL_COMPLETE + WIN trong `Core/Src/render.c` (phụ thuộc T036)
-- [ ] T046 [US2] `make -C test` xanh + `./build.sh` + on-board M4 (Acceptance US2)
+- [x] T041 [P] [US2] Module `levels`: 5 bitmap chướng ngại 20×13 + `level_get`/`level_is_last` trong `Core/Src/levels.c` + `Core/Inc/levels.h` (hợp đồng [contracts/levels.md](contracts/levels.md)) — layout trống/2-thanh/chữ-thập/4-góc/mê-cung, tâm sân luôn trống
+- [x] T042 [US2] Nạp chướng ngại của level vào `occupied` (trong `grid_rebuild` theo `level_idx`) trong `Core/Src/game.c`
+- [x] T043 [US2] Va chạm chướng ngại → GAME_OVER trong `game_step` — tự đạt được do chướng ngại nằm trong `occupied` (ngoại lệ ô đuôi không khớp chướng ngại)
+- [x] T044 [US2] Đạt `target_leaves` → `ST_LEVEL_COMPLETE`; **sang màn kế chỉ khi `IN_SELECT`** (`advance_level`: reset sâu, giữ score, nạp `step_ms`/chướng ngại màn mới); `ST_WIN` màn cuối; **nhánh sân-đầy** (`spawn_leaf`==0 → `EV_LEVEL_DONE`/`EV_WIN`) trong `Core/Src/game.c`
+- [x] T045 [US2] Render chướng ngại (xám đá) + màn LEVEL_COMPLETE ("LEVEL CLEAR") + WIN ("YOU WIN!") trong `Core/Src/render.c`
+- [ ] T046 [US2] host test xanh (`test_game`+`test_levels`) + `./build.sh` 0 lỗi ✓; **on-board M4 chờ nghiệm thu** (Acceptance US2)
 
 **Checkpoint**: US1 + US2 đều chạy độc lập.
 
