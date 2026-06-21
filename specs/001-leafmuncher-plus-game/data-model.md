@@ -27,7 +27,8 @@ typedef enum {
 
 typedef enum { PU_NONE, PU_SPEED, PU_SLOW, PU_GHOST, PU_PHASE } PowerType;
 
-typedef enum { IN_NONE, IN_DIR, IN_SELECT, IN_PAUSE } InputKind;
+// Một nút vật lý (JOY_SW) → IN_SELECT; ý nghĩa pause/resume/chọn do FSM quyết theo mode.
+typedef enum { IN_NONE, IN_DIR, IN_SELECT } InputKind;
 typedef struct { InputKind kind; Dir dir; } InputEvent;   // dir chỉ dùng khi kind==IN_DIR
 ```
 
@@ -152,7 +153,7 @@ Snapshot để **tiếp tục ván sau** (kể cả sau tắt nguồn). Mỗi ch
 
 **Chuyển hợp lệ**:
 - `MENU → PLAYING`: SELECT trên "Start" → reset session về level 0, score 0, sâu dài `LEN_START`.
-- `PLAYING → PAUSED`: nút user (PA0). PAUSED là **menu** (3 mục): **Tiếp tục** → PLAYING; **Lưu & Thoát**
+- `PLAYING → PAUSED`: nút chính JOY_SW (`IN_SELECT`). PAUSED là **menu** (3 mục): **Tiếp tục** → PLAYING; **Lưu & Thoát**
   → `store_save_game(play_mode, snapshot)` rồi → MENU; **Thoát (không lưu)** → MENU (không ghi ô lưu).
 - `MENU → PLAYING (Tiếp tục)`: chọn "Tiếp tục" của một chế độ có ô lưu hợp lệ → `store_load_game` khôi phục
   `GameState` rồi vào PLAYING (FR-030). Ô lưu **không** bị xóa khi tiếp tục (chỉ xóa khi ván kết thúc).

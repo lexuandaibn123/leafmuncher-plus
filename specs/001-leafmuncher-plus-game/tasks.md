@@ -59,11 +59,11 @@ tạo ở Phase 7 cùng tính năng của chúng → tổng 9 module.)
 - [x] T011 `gfx_present` + swap double-buffer đồng bộ VSYNC qua ngắt line LTDC trong `Core/Src/gfx.c` (phụ thuộc T008) — **nghiệm thu on-board: HẾT XÉ hoàn toàn**; `HAL_LTDC_LineEventCallback` swap tại dòng 323 (vùng blank), present chờ tới VSYNC; ISR đi qua `LTDC_IRQHandler` sẵn có
 - [x] T012 `gfx_blend_rect` (alpha blend CPU theo ô, có xoay) cho overlay mờ trong `Core/Src/gfx.c` (phụ thuộc T008) — **nghiệm thu on-board** (overlay PAUSED mờ đúng); blend hằng-màu nên dùng CPU (DMA2D M2M_BLEND cần buffer FG); overlay tĩnh nên vẽ 1 lần
 - [x] T013 [P] `input_init` (start ADC1 DMA vào `uint16_t[2]`, hiệu chỉnh center 16 mẫu/trục) + ánh xạ joystick→hướng (deadzone, trục trội, hysteresis) → `InputEvent` trong `Core/Src/input.c` (hợp đồng [contracts/input.md](contracts/input.md)) — **nghiệm thu on-board** (4 hướng khớp); trục trội ≥1.3× (AXIS_HYST 13/10); `JOY_INVERT_Y=1` (VRy đấu ngược); **ADC sample-time 480 chu kỳ** chống overrun/bão ngắt (research §22)
-- [x] T014 Đọc nút PB7 (JOY_SW) + PA0 (B1) với debounce ≥30ms + cạnh-nhấn → `IN_SELECT`/`IN_PAUSE` trong `Core/Src/input.c` (phụ thuộc T013) — debounce thời gian thực HAL_GetTick, hàng chờ cạnh-nhấn 1 ô để không mất sự kiện
+- [x] T014 Đọc **1 nút** PB7 (JOY_SW) với debounce ≥30ms + cạnh-nhấn → `IN_SELECT` ("nút chính") trong `Core/Src/input.c` (phụ thuộc T013) — bỏ nút B1/PA0 (ý nghĩa pause/select do FSM quyết theo `mode`); debounce thời gian thực HAL_GetTick, hàng chờ cạnh-nhấn 1 ô để không mất sự kiện
 - [x] T015 `input_entropy()` tích luỹ LSB nhiễu ADC cho seed RNG trong `Core/Src/input.c` (phụ thuộc T013) — gom LSB ADC ở input_init (16 mẫu) + mỗi input_poll
-- [ ] T016 [P] Helper LED (xanh PG13 / đỏ PG14) + safe-stop khi init HW lỗi (bật LED đỏ, dừng) trong `Core/Src/apptasks.c`
-- [ ] T017 **Cấu hình hardware Timer (TIM7 basic, qua `.ioc` rồi Generate — TIM6 đã là HAL timebase)**: bật **update interrupt** làm **time-base mili-giây thực** + nhịp **heartbeat LED xanh ~1Hz**; ISR đặt ở `Core/Src/stm32f4xx_it.c` vùng USER CODE, logic ở `Core/Src/apptasks.c`. Cung cấp đồng hồ ms thực cho đếm ngược lá vàng/power-up (M5/M6). *(Thoả yêu cầu peripheral Timer + Interrupt của constitution §2, nghiệm thu được.)*
-- [ ] T018 Demo M1: trong `Core/Src/main.c`/`freertos.c` vùng USER CODE, gọi `gfx`+`input` để 1 ô vuông di chuyển theo joystick **trên panel hiển thị** + LED heartbeat (TIM7) nhấp nháy; xác nhận `./build.sh` 0 error + chạy trên bo (checklist M1 [quickstart.md](quickstart.md)) (phụ thuộc T008–T017)
+- [x] T016 [P] Helper LED (xanh PG13 / đỏ PG14) + safe-stop khi init HW lỗi (bật LED đỏ, dừng) trong `Core/Src/apptasks.c` — `led_green/led_red/safe_stop`; `timebase_start` gọi `safe_stop` nếu `HAL_TIM_Base_Start_IT` lỗi
+- [x] T017 **Cấu hình hardware Timer (TIM7 basic, qua `.ioc` rồi Generate — TIM6 đã là HAL timebase)**: bật **update interrupt** làm **time-base mili-giây thực** + nhịp **heartbeat LED xanh ~1Hz**; ISR đặt ở `Core/Src/stm32f4xx_it.c` vùng USER CODE, logic ở `Core/Src/apptasks.c`. Cung cấp đồng hồ ms thực cho đếm ngược lá vàng/power-up (M5/M6). *(Thoả yêu cầu peripheral Timer + Interrupt của constitution §2, nghiệm thu được.)* — **nghiệm thu on-board**: heartbeat xanh ~1Hz; `app_millis()` đếm ms; `timebase_tick_isr` gọi từ `TIM7_IRQHandler`
+- [x] T018 Demo M1: trong `Core/Src/main.c`/`freertos.c` vùng USER CODE, gọi `gfx`+`input` để 1 ô vuông di chuyển theo joystick **trên panel hiển thị** + LED heartbeat (TIM7) nhấp nháy; xác nhận `./build.sh` 0 error + chạy trên bo (checklist M1 [quickstart.md](quickstart.md)) (phụ thuộc T008–T017) — **nghiệm thu on-board**: ô chạy 4 hướng + mũi tên chỉ hướng (soi lệch cần khi bấm) + heartbeat + nút JOY_SW toggle pause (overlay mờ), không xé hình
 
 ### M2 — Khung engine FreeRTOS
 
@@ -168,9 +168,9 @@ Game Over); power-up bật hiệu ứng có đồng hồ, tự tắt.
 
 ## Phase 6: User Story 4 - Menu & tạm dừng (Priority: P3) — Mốc M7
 
-**Goal**: MENU điều hướng joystick + nút; PAUSED bằng nút user; GAME_OVER chơi lại từ màn 1, điểm 0.
+**Goal**: MENU điều hướng joystick + nút; PAUSED bằng nút chính JOY_SW; GAME_OVER chơi lại từ màn 1, điểm 0.
 
-**Independent Test**: MENU đẩy joystick chọn Start → PLAYING; nhấn B1 → PAUSED → nhấn tiếp tiếp tục;
+**Independent Test**: MENU đẩy joystick chọn Start → PLAYING; nhấn JOY_SW → PAUSED → nhấn tiếp tiếp tục;
 GAME_OVER chọn chơi lại → ván mới điểm 0.
 
 ### Tests for User Story 4 (host) ⚠️
@@ -180,7 +180,7 @@ GAME_OVER chọn chơi lại → ván mới điểm 0.
 ### Implementation for User Story 4
 
 - [ ] T057 [US4] `game_input_ui`: điều hướng MENU (lên/xuống đổi `menu_sel`, SELECT = start) trong `Core/Src/game.c`
-- [ ] T058 [US4] Pause toggle (nút B1) PLAYING↔PAUSED, dừng cập nhật game khi PAUSED trong `Core/Src/game.c` + `Core/Src/apptasks.c` (phụ thuộc T022)
+- [ ] T058 [US4] Pause toggle (nút chính JOY_SW = `IN_SELECT`, FSM phân tách theo `mode`) PLAYING↔PAUSED, dừng cập nhật game khi PAUSED trong `Core/Src/game.c` + `Core/Src/apptasks.c` (phụ thuộc T022)
 - [ ] T059 [US4] GAME_OVER/WIN → chơi lại (SELECT → MENU rồi start, reset điểm 0) trong `Core/Src/game.c`
 - [ ] T060 [US4] Render MENU + overlay PAUSED (`gfx_blend_rect` mờ + hộp) trong `Core/Src/render.c` (phụ thuộc T036, T012)
 - [ ] T061 [US4] Đặt MENU làm điểm vào lúc boot (thay T038 boot-thẳng-PLAYING); **chốt bộ đếm TIM7/DWT tại sườn nhấn Start XOR `input_entropy()` → re-seed mỗi ván qua `game_init`** (research §13) trong `Core/Src/freertos.c`/`game.c` USER CODE (phụ thuộc T025, T057)

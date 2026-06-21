@@ -4,7 +4,8 @@
 
 /* input — T013/T014/T015.
  * Joystick: ADC1 quét 2 kênh (rank1=VRx CH5/PA5, rank2=VRy CH13/PC3) → DMA circular vào s_adc[].
- * Nút: JOY_SW (PB7, pull-up, active-low) → IN_SELECT; B1 (PA0, active-high) → IN_PAUSE.
+ * Nút: 1 nút duy nhất JOY_SW (PB7, pull-up, active-low) → IN_SELECT ("nút chính").
+ * Ý nghĩa pause/resume/chọn do FSM game quyết theo mode — input KHÔNG biết trạng thái (NT II).
  * Toàn bộ logic ánh xạ/deadzone/hysteresis/debounce ở đây; game nhận InputEvent thuần (NT II). */
 
 /* ===== Cấu hình ánh xạ (research §10,§11; DEADZONE/DEBOUNCE_MS trong game.h) ===== */
@@ -37,12 +38,10 @@ typedef struct {
   uint32_t      t_change;       /* mốc ms khi mức thô đổi gần nhất */
 } Button;
 
-static Button s_sw;   /* JOY_SW → IN_SELECT */
-static Button s_b1;   /* B1     → IN_PAUSE  */
+static Button s_sw;   /* JOY_SW → IN_SELECT (nút chính duy nhất) */
 
-/* Hàng chờ cạnh-nhấn 1 ô để không mất sự kiện khi 2 nút cùng đổi 1 lần poll. */
+/* Hàng chờ cạnh-nhấn 1 ô để không mất sự kiện nếu cạnh rơi giữa 2 lần poll. */
 static uint8_t s_pend_select = 0u;
-static uint8_t s_pend_pause  = 0u;
 
 static int iabs(int v) { return v < 0 ? -v : v; }
 
@@ -105,7 +104,6 @@ void input_init(void)
   s_center_y = (uint16_t)(sy / CAL_SAMPLES);
 
   btn_init(&s_sw, JOY_SW_GPIO_Port, JOY_SW_Pin, GPIO_PIN_RESET); /* active-low (pull-up) */
-  btn_init(&s_b1, B1_GPIO_Port,     B1_Pin,     GPIO_PIN_SET);   /* active-high */
 }
 
 InputEvent input_poll(void)
@@ -115,13 +113,11 @@ InputEvent input_poll(void)
   /* Góp thêm entropy từ LSB ADC mỗi lần poll. */
   s_entropy = (s_entropy << 1) ^ ((uint32_t)(s_adc[0] ^ s_adc[1]) & 0x01u);
 
-  /* Cập nhật debounce 2 nút mỗi poll (đừng bỏ lỡ cạnh); gom vào hàng chờ. */
+  /* Cập nhật debounce nút JOY_SW mỗi poll (đừng bỏ lỡ cạnh); gom vào hàng chờ. */
   if (btn_press_edge(&s_sw)) s_pend_select = 1u;
-  if (btn_press_edge(&s_b1)) s_pend_pause  = 1u;
 
   /* Ưu tiên nút (sự kiện rời rạc) hơn hướng; rút 1 sự kiện/poll. */
   if (s_pend_select) { s_pend_select = 0u; ev.kind = IN_SELECT; return ev; }
-  if (s_pend_pause)  { s_pend_pause  = 0u; ev.kind = IN_PAUSE;  return ev; }
 
   /* Ánh xạ joystick → hướng (deadzone + trục trội ≥1.3× + hysteresis). */
   int dx = (int)s_adc[0] - (int)s_center_x;

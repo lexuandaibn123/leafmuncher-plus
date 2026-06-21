@@ -22,6 +22,7 @@
 #include "stm32f4xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "apptasks.h"   /* T017 — timebase_tick_isr() */
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -188,7 +189,7 @@ void TIM7_IRQHandler(void)
   /* USER CODE END TIM7_IRQn 0 */
   HAL_TIM_IRQHandler(&htim7);
   /* USER CODE BEGIN TIM7_IRQn 1 */
-
+  timebase_tick_isr();   /* T017 — đồng hồ ms thực + heartbeat (logic ở apptasks.c) */
   /* USER CODE END TIM7_IRQn 1 */
 }
 

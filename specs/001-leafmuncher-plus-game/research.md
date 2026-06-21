@@ -131,12 +131,15 @@ demo mà không đổi kiến trúc.
 
 ## 11. Nút bấm & debounce
 
-- **Decision**: **JOY_SW (PB7)** = xác nhận MENU / chọn / chơi lại. **B1 user (PA0)** = Pause/Resume khi
-  PLAYING. Lấy mẫu trong `InputTask` @ **50Hz (20ms)**, debounce yêu cầu ổn định **≥ 30ms**, phát sự kiện
-  theo **cạnh nhấn** (press-edge), không theo giữ.
-- **Rationale**: polling + edge-detect đơn giản, đủ nhanh, dễ kiểm soát hơn EXTI; Pause phải là *nhấn*
-  không phải *giữ*.
-- **Alternatives**: EXTI + debounce phần cứng (bỏ — phức tạp hơn mức cần).
+- **Decision**: **một nút duy nhất — JOY_SW (PB7)**, luôn phát `IN_SELECT`; **ý nghĩa do FSM quyết theo
+  `mode`**: PLAYING→Pause, PAUSED→Resume, MENU/GAME_OVER/WIN/LEVEL_COMPLETE→chọn/tiếp/chơi lại. Lấy mẫu
+  trong `InputTask` @ **50Hz (20ms)**, debounce yêu cầu ổn định **≥ 30ms**, phát sự kiện theo **cạnh nhấn**
+  (press-edge), không theo giữ.
+- **Rationale**: bỏ nút B1 (PA0) — bấm JOY_SW tách rời trục analog nên không lệch cần; FSM phân tách
+  pause/select theo `mode` nên không cần nút thứ 2; polling + edge-detect đơn giản, đủ nhanh, dễ kiểm soát
+  hơn EXTI; Pause phải là *nhấn* không phải *giữ*.
+- **Alternatives**: 2 nút riêng SELECT/PAUSE (bỏ — nút thứ 2 dễ va trục, thừa khi FSM đã phân tách);
+  EXTI + debounce phần cứng (bỏ — phức tạp hơn mức cần).
 
 ## 12. Kiến trúc FreeRTOS & đồng bộ
 

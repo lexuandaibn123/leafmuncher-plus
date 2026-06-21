@@ -75,7 +75,9 @@ typedef enum {
 typedef enum { PU_NONE, PU_SPEED, PU_SLOW, PU_GHOST, PU_PHASE } PowerType;
 #define PU_KINDS 4   /* số power-up có đồng hồ: SPEED/SLOW/GHOST/PHASE (index = PowerType-1) */
 
-typedef enum { IN_NONE, IN_DIR, IN_SELECT, IN_PAUSE } InputKind;
+/* Một nút vật lý (JOY_SW) → IN_SELECT = "nút chính". Ý nghĩa do FSM quyết theo mode:
+ * PLAYING→pause, PAUSED→resume, MENU/GAME_OVER/WIN/LEVEL_COMPLETE→chọn/tiếp. */
+typedef enum { IN_NONE, IN_DIR, IN_SELECT } InputKind;
 typedef struct { InputKind kind; Dir dir; } InputEvent;   /* dir chỉ dùng khi kind==IN_DIR */
 
 /* ===================== Entity (data-model §2) ===================== */

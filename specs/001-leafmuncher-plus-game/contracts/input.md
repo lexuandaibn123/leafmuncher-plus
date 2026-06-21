@@ -11,7 +11,7 @@ InputEvent input_poll(void);                 // gọi @50Hz trong InputTask → 
 uint32_t   input_entropy(void);              // LSB nhiễu ADC tích luỹ — góp seed RNG (research §13)
 ```
 
-`InputEvent` (xem [data-model.md](../data-model.md)): `kind ∈ {IN_NONE, IN_DIR, IN_SELECT, IN_PAUSE}`.
+`InputEvent` (xem [data-model.md](../data-model.md)): `kind ∈ {IN_NONE, IN_DIR, IN_SELECT}`.
 
 ## Ánh xạ joystick → hướng (FR-002)
 
@@ -23,13 +23,19 @@ uint32_t   input_entropy(void);              // LSB nhiễu ADC tích luỹ — 
   - trục Y trội: dấu theo hiệu chỉnh (tránh đảo do đấu dây) → `DIR_UP`/`DIR_DOWN`.
 - Lọc 180° **không** làm ở đây — `game` lọc theo `committed_dir` (tránh thủng bẫy gạt-2-lần).
 
-## Nút (FR-015/016)
+## Nút (FR-015/016) — **một nút duy nhất**
 
 | Nút | Chân | Sự kiện | Khi nào |
 |---|---|---|---|
-| JOY_SW | PB7 (pull-up, active-low) | `IN_SELECT` | xác nhận MENU / chọn / chơi lại |
-| B1 user | PA0 (active-high) | `IN_PAUSE` | toggle Pause khi PLAYING |
+| JOY_SW | PB7 (pull-up, active-low) | `IN_SELECT` | nút chính — luôn phát `IN_SELECT` |
 
+- **Một nút vật lý.** `input` luôn phát `IN_SELECT`; **ý nghĩa do FSM `game` quyết theo `mode`**
+  (NT II — input không biết trạng thái):
+  - `ST_PLAYING` → `IN_SELECT` = **Pause** (sang `ST_PAUSED`).
+  - `ST_PAUSED` → `IN_SELECT` = **Resume** (về `ST_PLAYING`).
+  - `ST_MENU` / `ST_GAME_OVER` / `ST_WIN` / `ST_LEVEL_COMPLETE` → `IN_SELECT` = **chọn/tiếp/chơi lại**.
+- **Lý do bỏ nút B1:** bấm nút-trên-cần (JOY_SW) tách rời trục analog → không lệch cần; nút thứ 2 (B1/PA0)
+  dễ gây va trục khi pause giữa lúc chơi và không thật sự cần khi FSM đã phân tách theo `mode`.
 - **Debounce**: trạng thái nút phải ổn định ≥ `DEBOUNCE_MS (30ms)`.
 - **Cạnh nhấn**: phát sự kiện 1 lần tại sườn nhấn (press-edge), không lặp khi giữ.
 
