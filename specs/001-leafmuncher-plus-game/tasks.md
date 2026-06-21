@@ -31,8 +31,12 @@ Foundational tương ứng mốc **M1–M2**; US1=M3, US2=M4, US3=M5–M6, US4=M
 **Purpose**: Tạo khung 7 module core + harness test host. Scaffold CubeMX đã có sẵn. (`theme`/`store`
 tạo ở Phase 7 cùng tính năng của chúng → tổng 9 module.)
 
-- [ ] T001 [P] Tạo skeleton header (include guard, rỗng) cho 7 module trong `Core/Inc/`: `gfx.h`, `input.h`, `game.h`, `levels.h`, `render.h`, `rng.h`, `tasks.h`
-- [ ] T002 [P] Tạo skeleton source (include header, stub rỗng) cho 7 module trong `Core/Src/`: `gfx.c`, `input.c`, `game.c`, `levels.c`, `render.c`, `rng.c`, `tasks.c`
+- [ ] T001 [P] Tạo skeleton header (include guard, rỗng) cho 7 module trong `Core/Inc/`: `gfx.h`, `input.h`, `game.h`, `levels.h`, `render.h`, `rng.h`, `apptasks.h`
+- [ ] T002 [P] Tạo skeleton source (include header, stub rỗng) cho 7 module trong `Core/Src/`: `gfx.c`, `input.c`, `game.c`, `levels.c`, `render.c`, `rng.c`, `apptasks.c`
+
+> ⚠️ **Tên file `apptasks.c/.h`** (KHÔNG đặt `tasks.c`): Makefile CubeMX sinh object theo `notdir`, nên
+> một file tên `tasks.c` sẽ đè `build/tasks.o` của FreeRTOS (`Middlewares/.../Source/tasks.c`) → thiếu
+> symbol `vTaskSwitchContext`/`pxCurrentTCB`… Module vẫn gọi là **`tasks`**; chỉ tên file đổi để tránh trùng.
 - [ ] T003 Khai báo kiểu & hằng số dùng chung từ [data-model.md](data-model.md) + [research.md](research.md) (Dir, Cell, GameMode, LeafType, PowerType, InputEvent, GameEvents, COLS/ROWS/CELL/HUD_H, STEP_MS[], LEN_*, ...) trong `Core/Inc/game.h` (phụ thuộc T001)
 - [ ] T004 [P] Tạo harness test host: `test/Makefile` (gcc, include `Core/Inc`), `test/test_game.c` với 1 assert tối thiểu; xác nhận `make -C test` chạy
 - [ ] T005 Thêm 7 source mới vào `C_SOURCES` của `Makefile` (CubeMX) để firmware biên dịch chúng; ghi chú phải thêm lại sau mỗi lần CubeMX Generate; chạy `./build.sh` 0 error
@@ -57,17 +61,17 @@ tạo ở Phase 7 cùng tính năng của chúng → tổng 9 module.)
 - [ ] T013 [P] `input_init` (start ADC1 DMA vào `uint16_t[2]`, hiệu chỉnh center 16 mẫu/trục) + ánh xạ joystick→hướng (deadzone, trục trội, hysteresis) → `InputEvent` trong `Core/Src/input.c` (hợp đồng [contracts/input.md](contracts/input.md))
 - [ ] T014 Đọc nút PB7 (JOY_SW) + PA0 (B1) với debounce ≥30ms + cạnh-nhấn → `IN_SELECT`/`IN_PAUSE` trong `Core/Src/input.c` (phụ thuộc T013)
 - [ ] T015 `input_entropy()` tích luỹ LSB nhiễu ADC cho seed RNG trong `Core/Src/input.c` (phụ thuộc T013)
-- [ ] T016 [P] Helper LED (xanh PG13 / đỏ PG14) + safe-stop khi init HW lỗi (bật LED đỏ, dừng) trong `Core/Src/tasks.c`
-- [ ] T017 **Cấu hình hardware Timer (TIM7 basic, qua `.ioc` rồi Generate — TIM6 đã là HAL timebase)**: bật **update interrupt** làm **time-base mili-giây thực** + nhịp **heartbeat LED xanh ~1Hz**; ISR đặt ở `Core/Src/stm32f4xx_it.c` vùng USER CODE, logic ở `Core/Src/tasks.c`. Cung cấp đồng hồ ms thực cho đếm ngược lá vàng/power-up (M5/M6). *(Thoả yêu cầu peripheral Timer + Interrupt của constitution §2, nghiệm thu được.)*
+- [ ] T016 [P] Helper LED (xanh PG13 / đỏ PG14) + safe-stop khi init HW lỗi (bật LED đỏ, dừng) trong `Core/Src/apptasks.c`
+- [ ] T017 **Cấu hình hardware Timer (TIM7 basic, qua `.ioc` rồi Generate — TIM6 đã là HAL timebase)**: bật **update interrupt** làm **time-base mili-giây thực** + nhịp **heartbeat LED xanh ~1Hz**; ISR đặt ở `Core/Src/stm32f4xx_it.c` vùng USER CODE, logic ở `Core/Src/apptasks.c`. Cung cấp đồng hồ ms thực cho đếm ngược lá vàng/power-up (M5/M6). *(Thoả yêu cầu peripheral Timer + Interrupt của constitution §2, nghiệm thu được.)*
 - [ ] T018 Demo M1: trong `Core/Src/main.c`/`freertos.c` vùng USER CODE, gọi `gfx`+`input` để 1 ô vuông di chuyển theo joystick **trên panel hiển thị** + LED heartbeat (TIM7) nhấp nháy; xác nhận `./build.sh` 0 error + chạy trên bo (checklist M1 [quickstart.md](quickstart.md)) (phụ thuộc T008–T017)
 
 ### M2 — Khung engine FreeRTOS
 
 - [ ] T019 Định nghĩa `GameState` (worm ring buffer, `occupied[13][20]`, lá, power, score, level) + `game_init`/`game_start` + query đọc-chỉ `game_cell_content`/`game_step_ms` (toàn bộ API thuần của `game.h`), trong `Core/Src/game.c` + `Core/Inc/game.h` (data-model §2.5; hợp đồng [contracts/game-core.md](contracts/game-core.md)) (phụ thuộc T003 — dùng kiểu/hằng do T003 khai báo trong cùng `game.h`)
-- [ ] T020 Tạo đối tượng đồng bộ: queue input (sâu 4, overwrite), mutex snapshot state, semaphore/notification "frame ready" trong `Core/Src/tasks.c` (research §12)
-- [ ] T021 `InputTask` @50Hz đọc `input_poll` → đẩy `InputEvent` vào queue trong `Core/Src/tasks.c` (phụ thuộc T014, T020)
-- [ ] T022 `GameTask` `vTaskDelayUntil(step_ms)`, lấy input mới nhất, gọi `game_step`, ghi snapshot dưới mutex, báo render trong `Core/Src/tasks.c` (phụ thuộc T019, T020)
-- [ ] T023 `RenderTask` chờ "frame ready", copy snapshot dưới mutex tối thiểu, gọi `render`, `gfx_present()` trong `Core/Src/tasks.c` (phụ thuộc T011, T020)
+- [ ] T020 Tạo đối tượng đồng bộ: queue input (sâu 4, overwrite), mutex snapshot state, semaphore/notification "frame ready" trong `Core/Src/apptasks.c` (research §12)
+- [ ] T021 `InputTask` @50Hz đọc `input_poll` → đẩy `InputEvent` vào queue trong `Core/Src/apptasks.c` (phụ thuộc T014, T020)
+- [ ] T022 `GameTask` `vTaskDelayUntil(step_ms)`, lấy input mới nhất, gọi `game_step`, ghi snapshot dưới mutex, báo render trong `Core/Src/apptasks.c` (phụ thuộc T019, T020)
+- [ ] T023 `RenderTask` chờ "frame ready", copy snapshot dưới mutex tối thiểu, gọi `render`, `gfx_present()` trong `Core/Src/apptasks.c` (phụ thuộc T011, T020)
 - [ ] T024 `render_force_full` + `render_frame` dispatch theo `mode`; vẽ lưới tĩnh + khung HUD trong `Core/Src/render.c` (hợp đồng [contracts/render-gfx.md](contracts/render-gfx.md))
 - [ ] T025 Khởi tạo 3 task từ `Core/Src/freertos.c` vùng USER CODE (gọi `tasks_start()`); **seed RNG = (bộ đếm TIM7/DWT tại input đầu tiên) XOR `input_entropy()`** rồi truyền vào `game_init` (research §13); bỏ/thay `defaultTask` (phụ thuộc T015, T017, T021–T024)
 - [ ] T026 [P] Mở rộng test host: `test/test_rng.c` (tính xác định của xorshift32) trong `test/`
@@ -99,7 +103,7 @@ GAME_OVER hiện điểm. (Menu đầy đủ thuộc US4 — ở M3 boot thẳng
 - [ ] T034 [US1] Phát hiện va chạm (tường + thân-trừ-ô-đuôi) → `ST_GAME_OVER` + `EV_GAME_OVER` trong `Core/Src/game.c` (phụ thuộc T032)
 - [ ] T035 [US1] `game_step` máy trạng thái PLAYING (áp input, deadzone đi thẳng, sinh sự kiện) + chuyển sang GAME_OVER trong `Core/Src/game.c` (phụ thuộc T032–T034)
 - [ ] T036 [US1] Render PLAYING dirty-rect: ô đầu mới, ô đuôi cũ, ô lá, vùng điểm HUD trong `Core/Src/render.c` (phụ thuộc T024)
-- [ ] T037 [US1] Render màn GAME_OVER (điểm cuối) + bật LED đỏ; LED xanh khi PLAYING trong `Core/Src/render.c` + `Core/Src/tasks.c` (phụ thuộc T036)
+- [ ] T037 [US1] Render màn GAME_OVER (điểm cuối) + bật LED đỏ; LED xanh khi PLAYING trong `Core/Src/render.c` + `Core/Src/apptasks.c` (phụ thuộc T036)
 - [ ] T038 [US1] Boot thẳng vào PLAYING (tạm thời, sẽ thay bằng MENU ở US4/T061) trong `Core/Src/game.c`/`freertos.c` USER CODE; chạy `make -C test` xanh + `./build.sh` + on-board M3 (Acceptance US1, SC-001/002/006)
 
 **Checkpoint**: US1 hoạt động & test độc lập — đây là MVP demo được.
@@ -176,7 +180,7 @@ GAME_OVER chọn chơi lại → ván mới điểm 0.
 ### Implementation for User Story 4
 
 - [ ] T057 [US4] `game_input_ui`: điều hướng MENU (lên/xuống đổi `menu_sel`, SELECT = start) trong `Core/Src/game.c`
-- [ ] T058 [US4] Pause toggle (nút B1) PLAYING↔PAUSED, dừng cập nhật game khi PAUSED trong `Core/Src/game.c` + `Core/Src/tasks.c` (phụ thuộc T022)
+- [ ] T058 [US4] Pause toggle (nút B1) PLAYING↔PAUSED, dừng cập nhật game khi PAUSED trong `Core/Src/game.c` + `Core/Src/apptasks.c` (phụ thuộc T022)
 - [ ] T059 [US4] GAME_OVER/WIN → chơi lại (SELECT → MENU rồi start, reset điểm 0) trong `Core/Src/game.c`
 - [ ] T060 [US4] Render MENU + overlay PAUSED (`gfx_blend_rect` mờ + hộp) trong `Core/Src/render.c` (phụ thuộc T036, T012)
 - [ ] T061 [US4] Đặt MENU làm điểm vào lúc boot (thay T038 boot-thẳng-PLAYING); **chốt bộ đếm TIM7/DWT tại sườn nhấn Start XOR `input_entropy()` → re-seed mỗi ván qua `game_init`** (research §13) trong `Core/Src/freertos.c`/`game.c` USER CODE (phụ thuộc T025, T057)
@@ -210,7 +214,7 @@ còn nguyên.
 - [ ] T073 [US6] `render` đọc theme hiện hành: vẽ nền/màu/sprite chướng ngại theo `Theme` (thay màu hardcode); chữ HUD/đối tượng dùng bảng màu theme trong `Core/Src/render.c` (phụ thuộc T036, T070)
 - [ ] T074 [US5] Render HUD + GAME_OVER chế độ Vô tận (điểm ván + điểm cao) trong `Core/Src/render.c` (phụ thuộc T073)
 - [ ] T075 [US5/US6] Mở rộng MENU: chọn **chế độ** (Màn/Vô tận) + **đổi theme** (`theme_next`); `menu_sel` đa mục trong `Core/Src/game.c` (phụ thuộc T057)
-- [ ] T076 [US5/US6] Tích hợp `store` trong `Core/Src/tasks.c`/`freertos.c` USER CODE: `store_init` lúc boot → nạp `theme_id` cho render; khi đổi theme rời menu → `store_set_theme`+`store_commit`; ở GAME_OVER Vô tận nếu `score` > `endless_high` → `store_set_endless_high`+`store_commit` (phụ thuộc T070, T071, T075)
+- [ ] T076 [US5/US6] Tích hợp `store` trong `Core/Src/apptasks.c`/`freertos.c` USER CODE: `store_init` lúc boot → nạp `theme_id` cho render; khi đổi theme rời menu → `store_set_theme`+`store_commit`; ở GAME_OVER Vô tận nếu `score` > `endless_high` → `store_set_endless_high`+`store_commit` (phụ thuộc T070, T071, T075)
 - [ ] T077 Thêm `theme.c`, `store.c` vào `C_SOURCES` (Makefile) + **dành riêng sector 12 Bank 2 (`0x08100000`, 16 KB) cho store** trong `STM32F429XX_FLASH.ld` (MEMORY riêng / `NOLOAD`, tránh trùng vùng code Bank 1); ghi chú thêm lại sau mỗi CubeMX Generate; `./build.sh` 0 error
 - [ ] T078 Demo M8: menu chọn mode + theme → chơi Vô tận lập điểm cao → tắt/bật nguồn giữ điểm cao & theme; `make -C test` xanh + on-board (Acceptance US5/US6, FR-022..027)
 
@@ -219,7 +223,7 @@ còn nguyên.
 - [ ] T079 [US7] Test host: round-trip `GameState` (copy byte → khôi phục → `game_step` cho kết quả y hệt); save→clear→`has_save`=false (mô phỏng bằng struct copy, không Flash) trong `test/test_game.c`
 - [ ] T080 [US7] `store`: thêm `store_save_game`/`store_load_game`/`store_has_save`/`store_clear_save` — **2 ô lưu** theo `PlayMode`, version+crc, sai → coi như không có (hợp đồng [contracts/store.md](contracts/store.md)) trong `Core/Src/store.c` (phụ thuộc T071)
 - [ ] T081 [US7] PAUSED → **menu 3 mục** (Tiếp tục / Lưu & Thoát / Thoát) + điều hướng joystick trong `Core/Src/game.c` (phụ thuộc T058)
-- [ ] T082 [US7] MENU "Tiếp tục [chế độ]" khi `store_has_save` → `store_load_game` → PLAYING; "Lưu & Thoát" → `store_save_game`+về MENU; xóa ô lưu khi GAME_OVER/WIN (`store_clear_save`) trong `Core/Src/game.c` + `Core/Src/tasks.c` (phụ thuộc T076, T080, T081)
+- [ ] T082 [US7] MENU "Tiếp tục [chế độ]" khi `store_has_save` → `store_load_game` → PLAYING; "Lưu & Thoát" → `store_save_game`+về MENU; xóa ô lưu khi GAME_OVER/WIN (`store_clear_save`) trong `Core/Src/game.c` + `Core/Src/apptasks.c` (phụ thuộc T076, T080, T081)
 - [ ] T083 [US7] Render menu PAUSED 3 mục + chỉ báo "Tiếp tục" ở MENU trong `Core/Src/render.c` (phụ thuộc T060)
 - [ ] T084 [US7] Demo: chơi → Pause → Lưu & Thoát → tắt/bật nguồn → Tiếp tục đúng trạng thái; kết thúc → save tự mất; cả 2 mode độc lập; `make -C test` xanh + on-board (Acceptance US7, FR-028..032)
 
@@ -273,7 +277,7 @@ còn nguyên.
 
 - Setup: T001, T002, T004, T006 song song (khác file). T003 sau T001; T005 sau T002.
 - Foundational: các luồng file độc lập song song — `rng.c` (T007), `gfx.c` (T008→T009–T012),
-  `input.c` (T013→T014/T015), `tasks.c` LED (T016). T017 (TIM, `.ioc`+`tasks.c`/`it.c`) song song. Hợp
+  `input.c` (T013→T014/T015), `apptasks.c` LED (T016). T017 (TIM, `.ioc`+`apptasks.c`/`it.c`) song song. Hợp
   lưu ở T018 (demo M1). Lưu ý T019 ghi `game.h`/`game.c` — chạy **sau** T003 (cùng `game.h`).
 - Trong từng story: task `[P]` ở file khác (vd `levels.c` T041, `test_levels.c` T039) chạy song song.
 
@@ -286,7 +290,7 @@ còn nguyên.
 Task: "T007 rng.c — xorshift32"
 Task: "T008 gfx.c — framebuffer + fill_rect + rgb565"
 Task: "T013 input.c — ADC DMA + ánh xạ joystick"
-Task: "T016 tasks.c — LED + safe-stop"
+Task: "T016 apptasks.c — LED + safe-stop"
 Task: "T017 TIM7 (.ioc) — time-base ms + heartbeat"
 # Sau khi xong (gồm T009 panel SPI5, T010–T012 gfx) → T018 demo M1 hợp lưu.
 ```
