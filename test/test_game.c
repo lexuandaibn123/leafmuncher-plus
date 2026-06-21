@@ -21,6 +21,15 @@ static Cell worm_seg(const GameState *gs, int k) {
   return gs->worm.body[i];
 }
 
+/* Dựng lại occupied khớp thân (dùng sau khi đặt thân thủ công cho test va chạm). */
+static void rebuild_occupied(GameState *gs) {
+  memset(gs->occupied, 0, sizeof gs->occupied);
+  for (uint16_t k = 0; k < gs->worm.len; k++) {
+    Cell s = worm_seg(gs, (int)k);
+    gs->occupied[s.r][s.c] = 1;
+  }
+}
+
 int main(void) {
   /* ---- Phase 1: hình học lưới khớp data-model/research §1 ---- */
   assert(COLS == 20 && ROWS == 13 && CELL == 16 && HUD_H == 32);
@@ -98,7 +107,176 @@ int main(void) {
   GameState z; game_init(&z, 0u);
   assert(z.rng != 0u);
 
-  printf("test_game: all assertions passed (T019 init/start/queries); sizeof(GameState)=%lu\n",
-         (unsigned long)sizeof(GameState));
+  /* ================= US1 / M3 — luật core (T028–T031) ================= */
+
+  /* ---- T028: di chuyển + deadzone đi thẳng + ăn lá (grow + score) ---- */
+  {
+    GameState g;
+    game_init(&g, 0xABCDEFu);
+    game_start(&g);                 /* PLAYING; có 1 lá thường đầu màn */
+    assert(g.mode == ST_PLAYING);
+    assert(g.leaf_normal.type == LEAF_NORMAL);   /* game_start sinh lá đầu */
+
+    /* Deadzone (IN_NONE) → đi thẳng theo dir hiện tại (RIGHT). */
+    Cell h0 = worm_seg(&g, 0);
+    InputEvent none = { IN_NONE, DIR_RIGHT };
+    /* Đặt lá ngay trước đầu để chắc chắn ăn ở bước này. */
+    g.leaf_normal.type = LEAF_NORMAL;
+    g.leaf_normal.pos.c = (int8_t)(h0.c + 1); g.leaf_normal.pos.r = h0.r;
+    g.leaf_normal.life_ms = -1;
+    uint16_t len0 = g.worm.len;
+    uint32_t sc0  = g.score;
+    GameEvents e = game_step(&g, none, g.step_ms);
+
+    assert(e & EV_MOVED);
+    assert(e & EV_ATE_NORMAL);
+    Cell h1 = worm_seg(&g, 0);
+    assert(h1.c == h0.c + 1 && h1.r == h0.r);     /* đi thẳng phải */
+    assert(g.worm.len == len0 + 1);               /* dài ra 1 đốt */
+    assert(g.score == sc0 + SCORE_LEAF);          /* +10 điểm */
+    assert(g.leaves_eaten == 1);
+    assert(g.mode == ST_PLAYING);
+    /* Sinh lá mới ở ô trống (không trùng ô đầu vừa ăn). */
+    assert(g.leaf_normal.type == LEAF_NORMAL);
+    assert(!(g.leaf_normal.pos.c == h1.c && g.leaf_normal.pos.r == h1.r));
+    /* occupied khớp số đốt thân (lá KHÔNG nằm trong occupied). */
+    assert(occupied_count(&g) == g.worm.len);
+  }
+
+  /* ---- T029: va tường → GAME_OVER ---- */
+  {
+    GameState g;
+    game_init(&g, 7u);
+    game_start(&g);
+    /* Đẩy đầu sát biên phải rồi đâm tường. Dời thủ công đầu tới (COLS-1, r). */
+    Worm *w = &g.worm;
+    int r = ROWS / 2;
+    /* Dựng sâu nằm ngang đầu hướng phải tại sát biên: head (COLS-1,r). */
+    w->head_idx = 0u; w->len = LEN_START; w->dir = DIR_RIGHT; w->next_dir = DIR_RIGHT;
+    for (int k = 0; k < LEN_START; k++) { w->body[k].c = (int8_t)(COLS - 1 - k); w->body[k].r = (int8_t)r; }
+    g.leaf_normal.type = LEAF_NONE;   /* khỏi vướng lá ở biên */
+    /* rebuild occupied bằng 1 bước trung lập? gọi game_step để nó tự rebuild;
+     * nhưng head ở (COLS-1) đi RIGHT là ra ngoài ngay → GAME_OVER. */
+    GameEvents e = game_step(&g, (InputEvent){ IN_NONE, DIR_RIGHT }, g.step_ms);
+    assert(e & EV_GAME_OVER);
+    assert(g.mode == ST_GAME_OVER);
+  }
+
+  /* ---- T029b: va thân (giữa) → chết; nhưng đi vào ô ĐUÔI vừa nhả → KHÔNG chết ---- */
+  {
+    /* Sâu vuông 2x2: head→tail = (5,5),(6,5),(6,6),(5,6). dir=LEFT (đến (5,5) từ phải). */
+    GameState g;
+    game_init(&g, 99u);
+    game_start(&g);
+    Worm *w = &g.worm;
+    w->head_idx = 0u; w->len = 4u; w->dir = DIR_LEFT; w->next_dir = DIR_LEFT;
+    w->body[0] = (Cell){ 5, 5 };   /* head */
+    w->body[1] = (Cell){ 6, 5 };
+    w->body[2] = (Cell){ 6, 6 };
+    w->body[3] = (Cell){ 5, 6 };   /* tail */
+    g.leaf_normal.type = LEAF_NONE;
+    rebuild_occupied(&g);
+
+    /* Đi XUỐNG vào (5,6) = ô đuôi sắp nhả → hợp lệ, KHÔNG chết. */
+    GameEvents e = game_step(&g, (InputEvent){ IN_DIR, DIR_DOWN }, g.step_ms);
+    assert(!(e & EV_GAME_OVER));
+    assert(g.mode == ST_PLAYING);
+    Cell nh = worm_seg(&g, 0);
+    assert(nh.c == 5 && nh.r == 6);
+    assert(g.worm.len == 4u);                 /* không mọc → giữ độ dài */
+    assert(occupied_count(&g) == 4);          /* không có đốt trùng */
+  }
+
+  {
+    /* Đâm thân giữa → chết. head→tail = (5,6),(5,5),(6,5),(6,6),(6,7). dir=DOWN. */
+    GameState g;
+    game_init(&g, 1234u);
+    game_start(&g);
+    Worm *w = &g.worm;
+    w->head_idx = 0u; w->len = 5u; w->dir = DIR_DOWN; w->next_dir = DIR_DOWN;
+    w->body[0] = (Cell){ 5, 6 };   /* head */
+    w->body[1] = (Cell){ 5, 5 };
+    w->body[2] = (Cell){ 6, 5 };
+    w->body[3] = (Cell){ 6, 6 };   /* giữa thân */
+    w->body[4] = (Cell){ 6, 7 };   /* tail */
+    g.leaf_normal.type = LEAF_NONE;
+    rebuild_occupied(&g);
+    /* Đi PHẢI vào (6,6) = thân giữa (KHÁC ô đuôi (6,7)) → chết. */
+    GameEvents e = game_step(&g, (InputEvent){ IN_DIR, DIR_RIGHT }, g.step_ms);
+    assert(e & EV_GAME_OVER);
+    assert(g.mode == ST_GAME_OVER);
+  }
+
+  /* ---- T030: chặn 180° theo committed_dir (gồm chuỗi gạt trong các tick liên tiếp) ---- */
+  {
+    GameState g;
+    game_init(&g, 55u);
+    game_start(&g);
+    g.leaf_normal.type = LEAF_NONE;
+    assert(g.worm.dir == DIR_RIGHT);
+    /* Gạt LEFT (đối hướng RIGHT) → bị chặn, giữ hướng, vẫn đi phải. */
+    Cell h0 = worm_seg(&g, 0);
+    GameEvents e = game_step(&g, (InputEvent){ IN_DIR, DIR_LEFT }, g.step_ms);
+    assert(e & EV_DIR_BLOCKED);
+    assert(g.worm.dir == DIR_RIGHT);
+    Cell h1 = worm_seg(&g, 0);
+    assert(h1.c == h0.c + 1 && h1.r == h0.r);
+
+    /* Rẽ UP hợp lệ → committed_dir = UP. */
+    e = game_step(&g, (InputEvent){ IN_DIR, DIR_UP }, g.step_ms);
+    assert(!(e & EV_DIR_BLOCKED));
+    assert(g.worm.dir == DIR_UP);
+    Cell h2 = worm_seg(&g, 0);
+    assert(h2.c == h1.c && h2.r == h1.r - 1);
+
+    /* Ngay tick kế gạt DOWN (đối hướng committed UP) → chặn (đây là bẫy double-flick:
+     * UP rồi DOWN — nếu lọc theo next_dir thay vì committed_dir sẽ tự cắn). */
+    e = game_step(&g, (InputEvent){ IN_DIR, DIR_DOWN }, g.step_ms);
+    assert(e & EV_DIR_BLOCKED);
+    assert(g.worm.dir == DIR_UP);
+    Cell h3 = worm_seg(&g, 0);
+    assert(h3.c == h2.c && h3.r == h2.r - 1);     /* vẫn đi lên */
+  }
+
+  /* ---- T031: lá sinh ra không bao giờ đè thân (qua nhiều lần ăn) ---- */
+  {
+    GameState g;
+    game_init(&g, 0x5EED01u);
+    game_start(&g);
+    /* Ăn dọc hàng giữa từ c=11..18: mỗi lần đặt lá ngay trước đầu rồi bước. */
+    for (int c = 11; c <= 18; c++) {
+      Cell h = worm_seg(&g, 0);
+      g.leaf_normal.type = LEAF_NORMAL;
+      g.leaf_normal.pos.c = (int8_t)c; g.leaf_normal.pos.r = h.r;
+      g.leaf_normal.life_ms = -1;
+      GameEvents e = game_step(&g, (InputEvent){ IN_NONE, DIR_RIGHT }, g.step_ms);
+      assert(e & EV_ATE_NORMAL);
+      /* Lá mới sinh: trong lưới, không trùng đốt thân nào, ô không bị occupied. */
+      assert(g.leaf_normal.type == LEAF_NORMAL);
+      int lc = g.leaf_normal.pos.c, lr = g.leaf_normal.pos.r;
+      assert(lc >= 0 && lc < COLS && lr >= 0 && lr < ROWS);
+      assert(g.occupied[lr][lc] == 0);
+      for (uint16_t k = 0; k < g.worm.len; k++) {
+        Cell s = worm_seg(&g, (int)k);
+        assert(!(s.c == lc && s.r == lr));
+      }
+    }
+    assert(g.worm.len == (uint16_t)(LEN_START + 8));
+    assert(g.score == (uint32_t)(8 * SCORE_LEAF));
+  }
+
+  /* ---- M3: game_input_ui tối thiểu — GAME_OVER + nút chính → chơi lại ---- */
+  {
+    GameState g;
+    game_init(&g, 314u);
+    game_start(&g);
+    g.mode = ST_GAME_OVER; g.score = 123u;
+    game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_UP });
+    assert(g.mode == ST_PLAYING);
+    assert(g.score == 0u && g.worm.len == LEN_START);   /* reset ván mới */
+  }
+
+  printf("test_game: all assertions passed (T019 init/start/queries + T028-T031 core); "
+         "sizeof(GameState)=%lu\n", (unsigned long)sizeof(GameState));
   return 0;
 }

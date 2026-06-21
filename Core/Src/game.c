@@ -36,6 +36,53 @@ static void grid_rebuild(GameState *gs)
   }
 }
 
+/* Có lá khác đang đứng ở ô (c,r)? Bỏ qua slot `self` để không tự chặn lúc respawn. */
+static int cell_has_leaf(const GameState *gs, int c, int r, const Leaf *self)
+{
+  const Leaf *L[4] = { &gs->leaf_normal, &gs->leaf_gold, &gs->leaf_poison, &gs->leaf_pu };
+  for (int i = 0; i < 4; i++) {
+    if (L[i] == self) continue;
+    if (L[i]->type != LEAF_NONE && L[i]->pos.c == c && L[i]->pos.r == r) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/* Sinh lá `type` ở một ô TRỐNG ngẫu nhiên (không thân/chướng ngại trong occupied,
+ * không trùng lá khác). Chọn ô thứ k trong các ô trống qua rng → xác định theo seed.
+ * Trả 1 nếu đặt được; 0 nếu sân đầy (→ thắng-màn xử ở US2/T040). (T033) */
+static int spawn_leaf(GameState *gs, Leaf *leaf, LeafType type, PowerType pu)
+{
+  uint16_t free_n = 0u;
+  for (int r = 0; r < ROWS; r++)
+    for (int c = 0; c < COLS; c++)
+      if (!gs->occupied[r][c] && !cell_has_leaf(gs, c, r, leaf)) free_n++;
+
+  if (free_n == 0u) {
+    leaf->type = LEAF_NONE;
+    return 0;
+  }
+  uint32_t pick = rng_range(&gs->rng, free_n);
+  uint16_t idx = 0u;
+  for (int r = 0; r < ROWS; r++) {
+    for (int c = 0; c < COLS; c++) {
+      if (!gs->occupied[r][c] && !cell_has_leaf(gs, c, r, leaf)) {
+        if (idx == pick) {
+          leaf->pos.c  = (int8_t)c;
+          leaf->pos.r  = (int8_t)r;
+          leaf->type   = type;
+          leaf->pu_type= pu;
+          leaf->life_ms= -1;            /* lá thường: vô hạn (vàng/power-up đặt life ở US3) */
+          return 1;
+        }
+        idx++;
+      }
+    }
+  }
+  return 0;                              /* không tới (free_n > 0 đảm bảo tìm thấy) */
+}
+
 /* Đặt sâu dài LEN_START ở giữa sân, nằm ngang, đầu hướng phải. */
 static void worm_spawn_center(GameState *gs)
 {
@@ -84,7 +131,8 @@ void game_init(GameState *gs, uint32_t seed)
 
 void game_start(GameState *gs)
 {
-  reset_session(gs);           /* nạp màn 0, reset sâu/score/lá */
+  reset_session(gs);                                   /* nạp màn 0, reset sâu/score/lá */
+  spawn_leaf(gs, &gs->leaf_normal, LEAF_NORMAL, PU_NONE); /* lá thường đầu màn (FR-004) */
   gs->mode = ST_PLAYING;
 }
 
@@ -110,10 +158,11 @@ uint16_t game_step_ms(const GameState *gs)
   return gs->step_ms;          /* tick hiệu dụng; hệ số power-up áp ở game_step (T034) */
 }
 
-/* ===== game_step — M2 TỐI THIỂU: chỉ dời sâu 1 ô mỗi tick =====
- * Đủ cho demo M2 (T027): đầu sâu di chuyển trên lưới qua 3 task FreeRTOS.
- * Luật đầy đủ (ăn lá/va chạm Game Over/power-up/qua màn) hiện thực ở T032–T035 (US1).
- * Hành vi M2: áp hướng input (lọc 180°), dời sâu 1 ô; chạm biên → đứng yên (chưa Game Over). */
+/* ===== game_step — luật core US1 (T032–T035) =====
+ * Một bước logic ở ST_PLAYING: commit hướng (lọc 180° theo committed_dir), dời sâu,
+ * ăn lá thường (mọc +1, +10đ, sinh lá mới), phát hiện va chạm (tường + thân-trừ-đuôi)
+ * → ST_GAME_OVER. Lá vàng/độc/power-up & qua-màn ở US2/US3 (T040, T049–T054).
+ *   dt_ms: bước thời gian hiệu dụng — dùng cho đồng hồ lá/power-up (US3); M3 chưa cần. */
 GameEvents game_step(GameState *gs, InputEvent in, uint16_t dt_ms)
 {
   (void)dt_ms;
@@ -123,15 +172,23 @@ GameEvents game_step(GameState *gs, InputEvent in, uint16_t dt_ms)
   Worm *w = &gs->worm;
   GameEvents ev = 0u;
 
+  /* An toàn: nếu thiếu lá thường (vd sân từng đầy) thì thử sinh lại. */
+  if (gs->leaf_normal.type == LEAF_NONE) {
+    spawn_leaf(gs, &gs->leaf_normal, LEAF_NORMAL, PU_NONE);
+  }
+
+  /* T032: commit hướng — lọc 180° theo committed_dir (w->dir), KHÔNG theo next_dir
+   * (chống bẫy "gạt 2 lần trong 1 tick" UP→LEFT→DOWN tự cắn). IN_NONE = đi thẳng (FR-020). */
   if (in.kind == IN_DIR) {
     if (in.dir != dir_opposite(w->dir)) {
       w->next_dir = in.dir;
     } else {
-      ev |= EV_DIR_BLOCKED;          /* chặn quay đầu 180° (FR-003) */
+      ev |= EV_DIR_BLOCKED;                  /* chặn quay đầu 180° (FR-003) */
     }
   }
   w->dir = w->next_dir;
 
+  /* Ô đầu kế theo hướng đã commit. */
   Cell nh = w->body[w->head_idx];
   switch (w->dir) {
     case DIR_RIGHT: nh.c++; break;
@@ -139,14 +196,61 @@ GameEvents game_step(GameState *gs, InputEvent in, uint16_t dt_ms)
     case DIR_UP:    nh.r--; break;
     case DIR_DOWN:  nh.r++; break;
   }
+
+  /* T034: va tường → Game Over (PHASE wrap biên ở US3). */
   if (!cell_in_grid(nh.c, nh.r)) {
-    return ev;                       /* chạm biên: M2 đứng yên (T033 → Game Over) */
+    gs->mode = ST_GAME_OVER;
+    return ev | EV_GAME_OVER;
   }
 
-  /* Đẩy đầu mới vào ring buffer; len giữ nguyên → đuôi tự rớt (chưa mọc). */
+  /* T033: quyết định ăn lá thường TRƯỚC để biết bước này có mọc không. */
+  int ate_normal = (gs->leaf_normal.type == LEAF_NORMAL &&
+                    gs->leaf_normal.pos.c == nh.c &&
+                    gs->leaf_normal.pos.r == nh.r);
+  int growing = ate_normal;                  /* mọc ⇒ đuôi KHÔNG nhả bước này */
+
+  /* T034: va thân/chướng ngại → Game Over, TRỪ ô đuôi sắp nhả (khi không mọc).
+   * occupied dựng từ thân hiện tại; đuôi nằm trong occupied nên cần ngoại lệ này. */
+  if (gs->occupied[nh.r][nh.c]) {
+    Cell tail = w->body[(w->head_idx + w->len - 1u) % WORM_CAP];
+    int into_vacated_tail = (!growing && nh.c == tail.c && nh.r == tail.r);
+    if (!into_vacated_tail) {
+      gs->mode = ST_GAME_OVER;
+      return ev | EV_GAME_OVER;
+    }
+  }
+
+  /* T032: đẩy đầu mới vào ring buffer. Không mọc → len giữ nguyên (đuôi tự rớt). */
   uint16_t new_head = (uint16_t)((w->head_idx + WORM_CAP - 1u) % WORM_CAP);
   w->body[new_head] = nh;
   w->head_idx = new_head;
+  if (growing && w->len < WORM_CAP) {
+    w->len++;
+  }
   grid_rebuild(gs);
-  return ev | EV_MOVED;
+  ev |= EV_MOVED;
+
+  /* T033: hiệu lực ăn lá thường — điểm, đếm, sinh lá mới ở ô trống. */
+  if (ate_normal) {
+    gs->score += SCORE_LEAF;
+    gs->leaves_eaten++;
+    gs->leaf_normal.type = LEAF_NONE;
+    spawn_leaf(gs, &gs->leaf_normal, LEAF_NORMAL, PU_NONE);
+    ev |= EV_ATE_NORMAL;
+    /* Qua màn khi leaves_eaten ≥ TARGET_LEAVES[level]: LEVEL_COMPLETE/WIN ở US2 (T040). */
+  }
+  return ev;
+}
+
+/* ===== game_input_ui — điều hướng ngoài ST_PLAYING (lát M3) =====
+ * M3 tối thiểu: ở GAME_OVER, nút chính (IN_SELECT) → chơi lại từ màn 0.
+ * MENU/PAUSED/WIN/LEVEL_COMPLETE đầy đủ ở US4 (T057). */
+void game_input_ui(GameState *gs, InputEvent in)
+{
+  if (in.kind != IN_SELECT) {
+    return;
+  }
+  if (gs->mode == ST_GAME_OVER) {
+    game_start(gs);                          /* RNG giữ state → ván mới khác biệt */
+  }
 }

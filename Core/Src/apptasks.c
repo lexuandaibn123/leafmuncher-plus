@@ -130,7 +130,11 @@ static void GameTask(void *argument)
     osDelayUntil(t);
 
     InputEvent in = input_q_latest();
-    (void)game_step(&s_game, in, game_step_ms(&s_game));
+    if (s_game.mode == ST_PLAYING) {
+      (void)game_step(&s_game, in, game_step_ms(&s_game));   /* bước chơi (US1) */
+    } else {
+      game_input_ui(&s_game, in);   /* GAME_OVER → nút chính chơi lại (M3); MENU/PAUSE ở US4 */
+    }
 
     osMutexAcquire(s_snap_mutex, osWaitForever);
     s_snapshot = s_game;                 /* khoá tối thiểu: chỉ copy */
@@ -159,6 +163,7 @@ static void RenderTask(void *argument)
     osMutexRelease(s_snap_mutex);
     render_frame(&local, EV_MOVED);
     gfx_present();
+    led_red(local.mode == ST_GAME_OVER); /* T037: LED đỏ báo Game Over (xanh = heartbeat) */
   }
 }
 
