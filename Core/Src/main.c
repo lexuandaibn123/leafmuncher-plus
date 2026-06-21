@@ -34,7 +34,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "gfx.h"     /* SMOKE TEST — gỡ ở T018 */
+#include "input.h"   /* SMOKE TEST T013–T015 — gỡ ở T018 */
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -109,8 +110,66 @@ int main(void)
   MX_SPI5_Init();
   MX_TIM1_Init();
   MX_USART1_UART_Init();
+  MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
+  /* SMOKE TEST INPUT (T013–T015, gỡ ở T018): ô vuông di chuyển theo joystick trên panel.
+   * Kiểm: ADC DMA + hiệu chỉnh center + deadzone + chiều trục (JOY_INVERT_X/Y) + nút.
+   * - Gạt cần → ô chạy theo hướng (RIGHT/LEFT/UP/DOWN).
+   * - JOY_SW (PB7) → IN_SELECT: đưa ô về giữa + LED xanh (PG13) nháy.
+   * - B1 (PA0)   → IN_PAUSE : bật/tắt đóng băng di chuyển + LED đỏ (PG14). */
+  HAL_GPIO_WritePin(GPIOG, LD3_Pin | LD4_Pin, GPIO_PIN_RESET);
 
+  const uint16_t BG    = gfx_rgb565(8, 8, 28);     /* nền xanh đêm   */
+  const uint16_t SQ    = gfx_rgb565(60, 220, 90);  /* ô xanh lá      */
+  const uint16_t SQ_P  = gfx_rgb565(220, 90, 60);  /* ô cam khi pause */
+  const int STEP = 16;     /* bước di chuyển = 1 ô lưới (CELL) */
+  const int SZ   = 20;     /* cạnh ô vuông vẽ */
+  int x = (SCREEN_W - SZ) / 2;
+  int y = (SCREEN_H - SZ) / 2;
+
+  gfx_init();
+
+  /* MỐC 1: vẽ 1 khung trước input_init (ô đỏ) — nếu thấy ô này thì gfx OK. */
+  gfx_clear(BG);
+  gfx_fill_rect(x, y, SZ, SZ, gfx_rgb565(230, 40, 40));
+  gfx_present();
+  HAL_GPIO_WritePin(GPIOG, LD3_Pin, GPIO_PIN_SET);   /* LED xanh: sắp gọi input_init */
+
+  input_init();
+
+  HAL_GPIO_WritePin(GPIOG, LD4_Pin, GPIO_PIN_SET);   /* LED đỏ: input_init đã xong */
+  Dir cur = DIR_RIGHT;
+  int moving = 0;          /* chỉ đi khi đang gạt cần (IN_DIR gần nhất) */
+  int paused = 0;
+  uint32_t tick = 0;
+
+  while (1) {
+    InputEvent ev = input_poll();
+    if (ev.kind == IN_DIR)  { cur = ev.dir; moving = 1; }
+    else if (ev.kind == IN_NONE) { moving = 0; }
+    else if (ev.kind == IN_SELECT) { x = (SCREEN_W - SZ) / 2; y = (SCREEN_H - SZ) / 2;
+                                     HAL_GPIO_TogglePin(GPIOG, LD3_Pin); }
+    else if (ev.kind == IN_PAUSE)  { paused = !paused;
+                                     HAL_GPIO_WritePin(GPIOG, LD4_Pin, paused ? GPIO_PIN_SET : GPIO_PIN_RESET); }
+
+    /* Di chuyển ~120ms/bước khi đang gạt cần và không pause. */
+    if (!paused && moving && (tick % 6u == 0u)) {
+      switch (cur) {
+        case DIR_RIGHT: x += STEP; break;
+        case DIR_LEFT:  x -= STEP; break;
+        case DIR_UP:    y -= STEP; break;
+        case DIR_DOWN:  y += STEP; break;
+      }
+      if (x < 0) x = 0; if (x > SCREEN_W - SZ) x = SCREEN_W - SZ;
+      if (y < 0) y = 0; if (y > SCREEN_H - SZ) y = SCREEN_H - SZ;
+    }
+
+    gfx_clear(BG);
+    gfx_fill_rect(x, y, SZ, SZ, paused ? SQ_P : SQ);
+    gfx_present();
+    HAL_Delay(20);   /* ~50Hz poll */
+    tick++;
+  }
   /* USER CODE END 2 */
 
   /* Init scheduler */

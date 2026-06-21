@@ -39,6 +39,15 @@ uint32_t   input_entropy(void);              // LSB nhiễu ADC tích luỹ — 
 - Nhiều input trong 1 tick game → InputTask đẩy vào queue, GameTask lấy **cái mới nhất**; chỉ 1 lệnh rẽ
   được áp mỗi bước.
 
+## Lưu ý hiện thực — gotchas phần cứng (đã xác minh trên bo M1, xem [research.md §22](../research.md))
+
+- **ADC sample-time để 480 chu kỳ** (đặt trong `input_init` qua `HAL_ADC_ConfigChannel`, regen-safe).
+  Để mặc 3 chu kỳ với continuous+DMA circular → hoặc bão ngắt làm treo `HAL_Delay`, hoặc overrun làm ADC
+  dừng (buffer đóng băng). **Giữ nguyên ngắt DMA2_Stream0** để có xử lý overrun.
+- **Chiều trục tuỳ đấu dây**: bộ dây hiện tại cần `JOY_INVERT_Y=1`. 2 cờ `JOY_INVERT_X/Y` trong `input.c`.
+- **Debounce thời gian thực** bằng `HAL_GetTick()` (≥`DEBOUNCE_MS`), cạnh-nhấn 1 lần; hàng chờ 1 ô để
+  không mất sự kiện khi 2 nút đổi cùng lúc.
+
 ## Hợp đồng
 
 - `input` KHÔNG chứa logic game; chỉ sinh `InputEvent`.
