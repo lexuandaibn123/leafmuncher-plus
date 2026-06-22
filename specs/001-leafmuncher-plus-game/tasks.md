@@ -146,21 +146,21 @@ Game Over); power-up bật hiệu ứng có đồng hồ, tự tắt.
 
 ### Tests for User Story 3 (host) ⚠️
 
-- [ ] T047 [US3] Test lá vàng (+50, hết hạn `EV_LEAF_EXPIRED`) + lá độc (co 2 đốt, sàn `LEN_MIN`, phạt điểm khi ở sàn) trong `test/test_game.c`
-- [ ] T048 [US3] Test power-up: bật/trừ theo `dt_ms`/tắt/refresh cùng loại/stack khác loại; PHASE wrap; GHOST bỏ qua va thân + grace; trong `test/test_game.c`
+- [x] T047 [US3] Test lá vàng (+50, hết hạn `EV_LEAF_EXPIRED`) + lá độc (co 2 đốt, sàn `LEN_MIN`, phạt điểm khi ở sàn) trong `test/test_game.c` — T047a-d; clear lá đặc biệt ở T031/T040b để cô lập lá thường
+- [x] T048 [US3] Test power-up: bật/trừ theo `dt_ms`/tắt/refresh cùng loại/stack khác loại; PHASE wrap; GHOST bỏ qua va thân + grace; trong `test/test_game.c` — T048a-c
 
 ### Implementation for User Story 3 (M5 — lá đa dạng)
 
-- [ ] T049 [US3] Lá vàng: sinh (15%/lần ăn nếu chưa có), ăn +50, đồng hồ `GOLD_LIFE_MS` (ms thực từ TIM7) hết hạn tự mất trong `Core/Src/game.c` (phụ thuộc T033)
-- [ ] T050 [US3] Lá độc: sinh (lvl≥2, 20%), ăn → co 2 đốt (sàn `LEN_MIN`; nếu ở sàn thì −20 điểm), không Game Over trong `Core/Src/game.c` (phụ thuộc T033)
-- [ ] T051 [US3] Render lá vàng (nhấp nháy) + lá độc trong `Core/Src/render.c` (phụ thuộc T036)
+- [x] T049 [US3] Lá vàng: sinh (15%/lần ăn nếu chưa có), ăn +50, đồng hồ `GOLD_LIFE_MS` (hạ theo `dt_ms`) hết hạn tự mất trong `Core/Src/game.c` — `roll_specials`/`leaf_age`; ăn vàng KHÔNG tính target
+- [x] T050 [US3] Lá độc: sinh (lvl≥2 = idx≥1, 20%), ăn → co `POISON_SHRINK` đốt (sàn `LEN_MIN`; nếu ở sàn thì −20 điểm clamp≥0), không Game Over trong `Core/Src/game.c`
+- [x] T051 [US3] Render lá vàng (nhấp nháy theo `life_ms`) + lá độc (tím) trong `Core/Src/render.c` — vẽ trong khung đầy đủ (T036 hoãn)
 
 ### Implementation for User Story 3 (M6 — power-up)
 
-- [ ] T052 [US3] Power-up: sinh (lvl≥3, 12%), ăn → set `power.active[type]=PU_EFFECT_MS`, đồng hồ trừ theo ms thực (TIM7), đổi `step_ms` (SPEED/SLOW factor) trong `Core/Src/game.c` (phụ thuộc T033)
-- [ ] T053 [US3] GHOST (bỏ qua va thân + grace khi đầu còn chồng thân) + PHASE (wrap biên sang cạnh đối diện) trong `Core/Src/game.c` (phụ thuộc T034, T052)
-- [ ] T054 [US3] Render ô power-up + HUD icon + thanh/đồng hồ đếm ngược trong `Core/Src/render.c` (phụ thuộc T036)
-- [ ] T055 [US3] `make -C test` xanh + `./build.sh` + on-board M5+M6 (Acceptance US3)
+- [x] T052 [US3] Power-up: sinh (lvl≥3 = idx≥2, 12%), ăn → set `power[type-1]=PU_EFFECT_MS` (refresh cùng loại), đồng hồ trừ `dt_ms`/bước, `game_step_ms` áp SPEED ×0.6 / SLOW ×1.7 (clamp) trong `Core/Src/game.c`
+- [x] T053 [US3] GHOST (xuyên thân, không xuyên chướng ngại + grace khi đầu còn chồng thân) + PHASE (wrap biên sang cạnh đối diện) trong `Core/Src/game.c`
+- [x] T054 [US3] Render ô power-up (màu theo loại) + HUD chỉ báo loại + giây còn lại trong `Core/Src/render.c` — vẽ trong khung đầy đủ (T036 hoãn)
+- [ ] T055 [US3] `make -C test` xanh ✓ + `./build.sh` 0 lỗi ✓; **on-board M5+M6 chờ nghiệm thu** (Acceptance US3)
 
 **Checkpoint**: US1 + US2 + US3 đều chạy độc lập.
 
@@ -241,6 +241,10 @@ còn nguyên.
 - [ ] T088 [P] Cập nhật trạng thái mốc M1→M8 trong [AGENTS.md](../../AGENTS.md) §7
 - [ ] T089 Đối chiếu **9 peripheral** (GPIO, ADC+DMA, **Timer**, Interrupt, LTDC, FMC/SDRAM, DMA2D, **Flash**, FreeRTOS — constitution §2) đều nghiệm thu được trong [quickstart.md](quickstart.md); bổ sung mục thiếu
 - [ ] T090 Chạy trọn [quickstart.md](quickstart.md) end-to-end (M1→M8) làm nghiệm thu cuối
+- [ ] T091 [P] **Visual cuối — lá chi tiết + sâu phân khúc** (research §15 "YÊU CẦU CHỐT"): nâng cấp `render.c`
+  (ghép `gfx_fill_rect`/ô hoặc sprite `gfx_blit` gộp theme T070) để (1) 4 loại lá có *hình thù* rõ (dáng
+  lá + cuống/gân, lá độc có bọt/đốm, power-up token có ký hiệu) phân biệt bằng hình lẫn màu; (2) thân sâu
+  có khe/viền tách từng đốt + đầu có hướng. Nghiệm thu **bằng mắt** trên bo (SC-003: không nhấp nháy/xé hình)
 
 ---
 

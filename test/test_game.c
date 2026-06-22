@@ -247,6 +247,10 @@ int main(void) {
      * ngay trước đầu rồi bước, kiểm lá mới sinh không đè thân. */
     for (int c = 11; c <= 15; c++) {
       Cell h = worm_seg(&g, 0);
+      /* Xoá mọi lá đặc biệt roll_specials có thể đã sinh để chỉ kiểm lá thường. */
+      g.leaf_gold.type = LEAF_NONE;
+      g.leaf_poison.type = LEAF_NONE;
+      g.leaf_pu.type = LEAF_NONE;
       g.leaf_normal.type = LEAF_NORMAL;
       g.leaf_normal.pos.c = (int8_t)c; g.leaf_normal.pos.r = h.r;
       g.leaf_normal.life_ms = -1;
@@ -316,6 +320,9 @@ int main(void) {
     /* Ăn 6 lá dọc hàng giữa (c=11..16) → đạt target. */
     for (int c = 11; c <= 16; c++) {
       Cell h = worm_seg(&g, 0);
+      g.leaf_gold.type = LEAF_NONE;          /* loại nhiễu lá đặc biệt (roll_specials) */
+      g.leaf_poison.type = LEAF_NONE;
+      g.leaf_pu.type = LEAF_NONE;
       g.leaf_normal.type = LEAF_NORMAL;
       g.leaf_normal.pos.c = (int8_t)c; g.leaf_normal.pos.r = h.r;
       g.leaf_normal.life_ms = -1;
@@ -391,7 +398,174 @@ int main(void) {
     assert(g.leaf_normal.type == LEAF_NONE);     /* không sinh được lá mới */
   }
 
+  /* ================= US3 / M5–M6 — lá đa dạng & power-up (T047–T048) ================= */
+
+  /* ---- T047a: lá vàng → +50, mọc +1, biến mất; KHÔNG tính vào target ---- */
+  {
+    GameState g;
+    game_init(&g, 0x901D01u);
+    game_start(&g);                              /* màn 0, PLAYING */
+    Cell h = worm_seg(&g, 0);
+    g.leaf_normal.type = LEAF_NORMAL;            /* để xa, ngoài lối đi (tránh safety respawn) */
+    g.leaf_normal.pos.c = 0; g.leaf_normal.pos.r = 0; g.leaf_normal.life_ms = -1;
+    g.leaf_gold.type = LEAF_GOLD;                /* lá vàng ngay trước đầu */
+    g.leaf_gold.pos.c = (int8_t)(h.c + 1); g.leaf_gold.pos.r = h.r;
+    g.leaf_gold.life_ms = GOLD_LIFE_MS;
+    uint16_t len0 = g.worm.len;
+    uint32_t sc0 = g.score;
+    GameEvents e = game_step(&g, (InputEvent){ IN_NONE, DIR_RIGHT }, g.step_ms);
+    assert(e & EV_ATE_GOLD);
+    assert(g.score == sc0 + SCORE_GOLD);         /* +50 */
+    assert(g.worm.len == len0 + 1);              /* mọc +1 */
+    assert(g.leaf_gold.type == LEAF_NONE);       /* biến mất */
+    assert(g.leaves_eaten == 0);                 /* vàng không tính target */
+    assert(g.mode == ST_PLAYING);
+  }
+
+  /* ---- T047b: lá vàng quá hạn → tự biến mất (EV_LEAF_EXPIRED), không ăn ---- */
+  {
+    GameState g;
+    game_init(&g, 0x901D02u);
+    game_start(&g);
+    Cell h = worm_seg(&g, 0);
+    g.leaf_normal.type = LEAF_NORMAL;
+    g.leaf_normal.pos.c = 0; g.leaf_normal.pos.r = 0; g.leaf_normal.life_ms = -1;
+    g.leaf_gold.type = LEAF_GOLD;                /* đặt LỆCH lối đi (đi phải) */
+    g.leaf_gold.pos.c = h.c; g.leaf_gold.pos.r = (int8_t)(h.r + 3);
+    g.leaf_gold.life_ms = 100;                   /* sắp hết hạn */
+    GameEvents e = game_step(&g, (InputEvent){ IN_NONE, DIR_RIGHT }, 200);  /* dt 200 > 100 */
+    assert(e & EV_LEAF_EXPIRED);
+    assert(g.leaf_gold.type == LEAF_NONE);
+    assert(!(e & EV_ATE_GOLD));
+    assert(g.mode == ST_PLAYING);
+  }
+
+  /* ---- T047c: lá độc → co POISON_SHRINK đốt, KHÔNG Game Over ---- */
+  {
+    GameState g;
+    game_init(&g, 0x9015E0u);
+    game_start(&g);                              /* màn 0 (trống) */
+    Worm *w = &g.worm;                           /* sâu dài 5 nằm ngang, đầu (10,6) */
+    w->head_idx = 0u; w->len = 5u; w->dir = DIR_RIGHT; w->next_dir = DIR_RIGHT;
+    for (int k = 0; k < 5; k++) { w->body[k].c = (int8_t)(10 - k); w->body[k].r = 6; }
+    g.leaf_normal.type = LEAF_NORMAL;
+    g.leaf_normal.pos.c = 0; g.leaf_normal.pos.r = 0; g.leaf_normal.life_ms = -1;
+    g.leaf_poison.type = LEAF_POISON;            /* lá độc ngay trước đầu */
+    g.leaf_poison.pos.c = 11; g.leaf_poison.pos.r = 6; g.leaf_poison.life_ms = -1;
+    rebuild_occupied(&g);
+    uint32_t sc0 = g.score;
+    GameEvents e = game_step(&g, (InputEvent){ IN_NONE, DIR_RIGHT }, g.step_ms);
+    assert(e & EV_ATE_POISON);
+    assert(!(e & EV_GAME_OVER));
+    assert(g.mode == ST_PLAYING);
+    assert(g.worm.len == (uint16_t)(5 - POISON_SHRINK));   /* co 2 → 3 */
+    assert(g.leaf_poison.type == LEAF_NONE);
+    assert(g.score == sc0);                      /* trên sàn → không phạt điểm */
+  }
+
+  /* ---- T047d: lá độc khi đã ở sàn LEN_MIN → −20 điểm (clamp ≥ 0), giữ độ dài ---- */
+  {
+    GameState g;
+    game_init(&g, 0x9015E1u);
+    game_start(&g);                              /* len = LEN_START = LEN_MIN = 3 */
+    Cell h = worm_seg(&g, 0);
+    g.score = 5u;                                /* 5 − 20 → clamp 0 */
+    g.leaf_normal.type = LEAF_NORMAL;
+    g.leaf_normal.pos.c = 0; g.leaf_normal.pos.r = 0; g.leaf_normal.life_ms = -1;
+    g.leaf_poison.type = LEAF_POISON;
+    g.leaf_poison.pos.c = (int8_t)(h.c + 1); g.leaf_poison.pos.r = h.r; g.leaf_poison.life_ms = -1;
+    GameEvents e = game_step(&g, (InputEvent){ IN_NONE, DIR_RIGHT }, g.step_ms);
+    assert(e & EV_ATE_POISON);
+    assert(g.worm.len == LEN_MIN);               /* không xuống dưới sàn */
+    assert(g.score == 0u);                       /* phạt clamp ≥ 0 */
+    assert(g.mode == ST_PLAYING);
+  }
+
+  /* ---- T048a: power-up — bật PU_EFFECT_MS, trừ dt cuối bước; cùng loại = refresh; khác loại = stack ---- */
+  {
+    GameState g;
+    game_init(&g, 0x9000U);
+    game_start(&g);
+    Cell h = worm_seg(&g, 0);
+    g.leaf_normal.type = LEAF_NORMAL;
+    g.leaf_normal.pos.c = 0; g.leaf_normal.pos.r = 0; g.leaf_normal.life_ms = -1;
+    /* Ăn GHOST. */
+    g.leaf_pu.type = LEAF_POWERUP; g.leaf_pu.pu_type = PU_GHOST;
+    g.leaf_pu.pos.c = (int8_t)(h.c + 1); g.leaf_pu.pos.r = h.r; g.leaf_pu.life_ms = PU_LIFE_MS;
+    uint16_t len0 = g.worm.len;
+    GameEvents e = game_step(&g, (InputEvent){ IN_NONE, DIR_RIGHT }, 100);
+    assert(e & EV_ATE_POWERUP);
+    assert(g.leaf_pu.type == LEAF_NONE);
+    assert(g.power[PU_GHOST - 1] == PU_EFFECT_MS - 100);   /* set 6000 → −100 cuối bước */
+    assert(g.worm.len == len0);                  /* power-up KHÔNG mọc */
+
+    /* Bước trôi (không ăn) → trừ tiếp 100. */
+    e = game_step(&g, (InputEvent){ IN_NONE, DIR_RIGHT }, 100);
+    assert(g.power[PU_GHOST - 1] == PU_EFFECT_MS - 200);
+
+    /* Ăn GHOST lần nữa → refresh về PU_EFFECT_MS (rồi −100). */
+    Cell h2 = worm_seg(&g, 0);
+    g.leaf_pu.type = LEAF_POWERUP; g.leaf_pu.pu_type = PU_GHOST;
+    g.leaf_pu.pos.c = (int8_t)(h2.c + 1); g.leaf_pu.pos.r = h2.r; g.leaf_pu.life_ms = PU_LIFE_MS;
+    e = game_step(&g, (InputEvent){ IN_NONE, DIR_RIGHT }, 100);
+    assert(g.power[PU_GHOST - 1] == PU_EFFECT_MS - 100);   /* refresh, không cộng dồn */
+
+    /* Ăn SPEED → stack độc lập với GHOST; tick hiệu dụng nhanh hơn. */
+    Cell h3 = worm_seg(&g, 0);
+    g.leaf_pu.type = LEAF_POWERUP; g.leaf_pu.pu_type = PU_SPEED;
+    g.leaf_pu.pos.c = (int8_t)(h3.c + 1); g.leaf_pu.pos.r = h3.r; g.leaf_pu.life_ms = PU_LIFE_MS;
+    e = game_step(&g, (InputEvent){ IN_NONE, DIR_RIGHT }, 100);
+    assert(g.power[PU_SPEED - 1] == PU_EFFECT_MS - 100);
+    assert(g.power[PU_GHOST - 1] > 0);           /* GHOST vẫn chạy song song */
+    assert(game_step_ms(&g) < g.step_ms);        /* SPEED → tick ngắn hơn nhịp cơ bản */
+  }
+
+  /* ---- T048b: GHOST cho đầu xuyên qua THÂN (không Game Over) ---- */
+  {
+    GameState g;
+    game_init(&g, 0x9001U);
+    game_start(&g);
+    Worm *w = &g.worm;                           /* đầu (6,6) đi LEFT vào (5,6) = đốt thân giữa */
+    w->head_idx = 0u; w->len = 5u; w->dir = DIR_LEFT; w->next_dir = DIR_LEFT;
+    w->body[0] = (Cell){ 6, 6 };                 /* head */
+    w->body[1] = (Cell){ 6, 5 };
+    w->body[2] = (Cell){ 5, 5 };
+    w->body[3] = (Cell){ 5, 6 };                 /* đầu sẽ đi vào đây (KHÁC ô đuôi) */
+    w->body[4] = (Cell){ 5, 7 };                 /* tail */
+    g.leaf_normal.type = LEAF_NORMAL;
+    g.leaf_normal.pos.c = 0; g.leaf_normal.pos.r = 0; g.leaf_normal.life_ms = -1;
+    rebuild_occupied(&g);
+    g.power[PU_GHOST - 1] = PU_EFFECT_MS;        /* GHOST đang bật */
+    GameEvents e = game_step(&g, (InputEvent){ IN_NONE, DIR_LEFT }, g.step_ms);
+    assert(!(e & EV_GAME_OVER));                 /* xuyên thân, không chết */
+    assert(g.mode == ST_PLAYING);
+    Cell nh = worm_seg(&g, 0);
+    assert(nh.c == 5 && nh.r == 6);
+  }
+
+  /* ---- T048c: PHASE cho đầu wrap qua biên sang cạnh đối diện ---- */
+  {
+    GameState g;
+    game_init(&g, 0x9002U);
+    game_start(&g);
+    Worm *w = &g.worm;                           /* đầu sát biên phải (19,6) đi RIGHT */
+    w->head_idx = 0u; w->len = 3u; w->dir = DIR_RIGHT; w->next_dir = DIR_RIGHT;
+    w->body[0] = (Cell){ 19, 6 };
+    w->body[1] = (Cell){ 18, 6 };
+    w->body[2] = (Cell){ 17, 6 };
+    g.leaf_normal.type = LEAF_NORMAL;
+    g.leaf_normal.pos.c = 0; g.leaf_normal.pos.r = 0; g.leaf_normal.life_ms = -1;
+    rebuild_occupied(&g);
+    g.power[PU_PHASE - 1] = PU_EFFECT_MS;        /* PHASE đang bật */
+    GameEvents e = game_step(&g, (InputEvent){ IN_NONE, DIR_RIGHT }, g.step_ms);
+    assert(!(e & EV_GAME_OVER));                 /* không chết ở biên */
+    assert(g.mode == ST_PLAYING);
+    Cell nh = worm_seg(&g, 0);
+    assert(nh.c == 0 && nh.r == 6);              /* wrap sang cạnh trái cùng hàng */
+  }
+
   printf("test_game: all assertions passed (T019 init/start + T028-T031 core + "
-         "T040 obstacles/levels); sizeof(GameState)=%lu\n", (unsigned long)sizeof(GameState));
+         "T040 obstacles/levels + T047-T048 leaves/power-ups); sizeof(GameState)=%lu\n",
+         (unsigned long)sizeof(GameState));
   return 0;
 }

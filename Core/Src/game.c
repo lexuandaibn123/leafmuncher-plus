@@ -177,9 +177,75 @@ LeafType game_cell_content(const GameState *gs, Cell c)
   return LEAF_NONE;            /* trống (hoặc thân/chướng ngại — render đọc worm/occupied) */
 }
 
+/* T052: tick hiệu dụng = step_ms cơ bản của màn × hệ số power-up tốc độ (clamp).
+ * gs->step_ms GIỮ là nhịp cơ bản; hệ số áp ở đây để hết hiệu lực thì tự về nhịp gốc. */
 uint16_t game_step_ms(const GameState *gs)
 {
-  return gs->step_ms;          /* tick hiệu dụng; hệ số power-up áp ở game_step (T034) */
+  float ms = (float)gs->step_ms;
+  if (gs->power[PU_SPEED - 1] > 0) ms *= SPEED_FACTOR;   /* tăng tốc ×0.6 */
+  if (gs->power[PU_SLOW  - 1] > 0) ms *= SLOW_FACTOR;    /* làm chậm ×1.7 */
+  if (ms < (float)STEP_MS_MIN) ms = (float)STEP_MS_MIN;
+  if (ms > (float)STEP_MS_MAX) ms = (float)STEP_MS_MAX;
+  return (uint16_t)(ms + 0.5f);
+}
+
+/* T053: ô (c,r) có phải chướng ngại màn hiện tại? GHOST xuyên THÂN nhưng KHÔNG xuyên
+ * chướng ngại (occupied gộp cả hai → cần phân biệt khi quyết va chạm). */
+static int cell_is_obstacle(const GameState *gs, int c, int r)
+{
+  const Level *lv = level_get(gs->level_idx);
+  return (lv != 0 && lv->obstacles != 0 && lv->obstacles[r][c]) ? 1 : 0;
+}
+
+/* T049: hạ đồng hồ 1 lá có hạn (vàng/power-up). Trả EV_LEAF_EXPIRED nếu vừa hết & biến mất. */
+static GameEvents leaf_age(Leaf *lf, uint16_t dt_ms)
+{
+  if (lf->type != LEAF_NONE && lf->life_ms >= 0) {
+    lf->life_ms -= (int32_t)dt_ms;
+    if (lf->life_ms <= 0) {
+      lf->type = LEAF_NONE;
+      return EV_LEAF_EXPIRED;
+    }
+  }
+  return 0u;
+}
+
+/* T053: đầu (k=0) có đang chồng lên một đốt thân khác? (cho grace GHOST lúc hết giờ.) */
+static int head_overlaps_body(const GameState *gs)
+{
+  const Worm *w = &gs->worm;
+  Cell h = w->body[w->head_idx];
+  for (uint16_t k = 1; k < w->len; k++) {
+    uint16_t i = (uint16_t)((w->head_idx + k) % WORM_CAP);
+    if (w->body[i].c == h.c && w->body[i].r == h.r) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/* T049/T050/T052: sau khi ăn lá thường, rút ngẫu nhiên lá đặc biệt/power-up (research §6).
+ * Mở khoá dần: vàng mọi màn; độc từ level_idx>=1 (lv2); power-up từ level_idx>=2 (lv3).
+ * Chỉ sinh khi loại đó CHƯA có trên sân; mỗi loại ≤ 1. Mọi rút đi qua rng → xác định. */
+static void roll_specials(GameState *gs)
+{
+  if (gs->leaf_gold.type == LEAF_NONE &&
+      rng_range(&gs->rng, 100u) < GOLD_CHANCE_PCT) {
+    if (spawn_leaf(gs, &gs->leaf_gold, LEAF_GOLD, PU_NONE)) {
+      gs->leaf_gold.life_ms = GOLD_LIFE_MS;          /* lá vàng có hạn giờ */
+    }
+  }
+  if (gs->level_idx >= 1u && gs->leaf_poison.type == LEAF_NONE &&
+      rng_range(&gs->rng, 100u) < POISON_CHANCE_PCT) {
+    spawn_leaf(gs, &gs->leaf_poison, LEAF_POISON, PU_NONE);  /* life_ms=-1: tồn tại tới khi bị ăn */
+  }
+  if (gs->level_idx >= 2u && gs->leaf_pu.type == LEAF_NONE &&
+      rng_range(&gs->rng, 100u) < PU_CHANCE_PCT) {
+    PowerType pt = (PowerType)(PU_SPEED + rng_range(&gs->rng, PU_KINDS));  /* đều trong 4 loại */
+    if (spawn_leaf(gs, &gs->leaf_pu, LEAF_POWERUP, pt)) {
+      gs->leaf_pu.life_ms = PU_LIFE_MS;              /* power-up trên sân có hạn giờ */
+    }
+  }
 }
 
 /* ===== game_step — luật core US1 (T032–T035) =====
@@ -189,12 +255,15 @@ uint16_t game_step_ms(const GameState *gs)
  *   dt_ms: bước thời gian hiệu dụng — dùng cho đồng hồ lá/power-up (US3); M3 chưa cần. */
 GameEvents game_step(GameState *gs, InputEvent in, uint16_t dt_ms)
 {
-  (void)dt_ms;
   if (gs->mode != ST_PLAYING) {
     return 0u;
   }
   Worm *w = &gs->worm;
   GameEvents ev = 0u;
+
+  /* Power-up đang BẬT khi vào bước (quyết va biên/va thân của chính bước này). */
+  int ghost_on = (gs->power[PU_GHOST - 1] > 0);
+  int phase_on = (gs->power[PU_PHASE - 1] > 0);
 
   /* An toàn: nếu thiếu lá thường (vd sân từng đầy) thì thử sinh lại. */
   if (gs->leaf_normal.type == LEAF_NONE) {
@@ -221,26 +290,43 @@ GameEvents game_step(GameState *gs, InputEvent in, uint16_t dt_ms)
     case DIR_DOWN:  nh.r++; break;
   }
 
-  /* T034: va tường → Game Over (PHASE wrap biên ở US3). */
+  /* T053: va biên → PHASE wrap sang cạnh đối diện; không PHASE → Game Over (T034). */
   if (!cell_in_grid(nh.c, nh.r)) {
-    gs->mode = ST_GAME_OVER;
-    return ev | EV_GAME_OVER;
+    if (phase_on) {
+      if (nh.c < 0)          nh.c = (int8_t)(COLS - 1);
+      else if (nh.c >= COLS) nh.c = 0;
+      if (nh.r < 0)          nh.r = (int8_t)(ROWS - 1);
+      else if (nh.r >= ROWS) nh.r = 0;
+    } else {
+      gs->mode = ST_GAME_OVER;
+      return ev | EV_GAME_OVER;
+    }
   }
 
-  /* T033: quyết định ăn lá thường TRƯỚC để biết bước này có mọc không. */
+  /* T033/T049/T050/T052: ăn lá gì ở ô đầu mới? (lá KHÔNG nằm trong occupied → quyết riêng;
+   * bất biến: tối đa 1 lá/ô.) Lá thường & vàng mọc +1; độc co; power-up giữ độ dài. */
   int ate_normal = (gs->leaf_normal.type == LEAF_NORMAL &&
-                    gs->leaf_normal.pos.c == nh.c &&
-                    gs->leaf_normal.pos.r == nh.r);
-  int growing = ate_normal;                  /* mọc ⇒ đuôi KHÔNG nhả bước này */
+                    gs->leaf_normal.pos.c == nh.c && gs->leaf_normal.pos.r == nh.r);
+  int ate_gold   = (gs->leaf_gold.type == LEAF_GOLD &&
+                    gs->leaf_gold.pos.c == nh.c && gs->leaf_gold.pos.r == nh.r);
+  int ate_poison = (gs->leaf_poison.type == LEAF_POISON &&
+                    gs->leaf_poison.pos.c == nh.c && gs->leaf_poison.pos.r == nh.r);
+  int ate_pu     = (gs->leaf_pu.type == LEAF_POWERUP &&
+                    gs->leaf_pu.pos.c == nh.c && gs->leaf_pu.pos.r == nh.r);
+  int growing = (ate_normal || ate_gold);    /* mọc ⇒ đuôi KHÔNG nhả bước này */
 
-  /* T034: va thân/chướng ngại → Game Over, TRỪ ô đuôi sắp nhả (khi không mọc).
+  /* T034/T053: va thân/chướng ngại → Game Over, TRỪ ô đuôi sắp nhả (khi không mọc).
+   * GHOST xuyên qua THÂN (không Game Over) nhưng KHÔNG xuyên chướng ngại.
    * occupied dựng từ thân hiện tại; đuôi nằm trong occupied nên cần ngoại lệ này. */
   if (gs->occupied[nh.r][nh.c]) {
     Cell tail = w->body[(w->head_idx + w->len - 1u) % WORM_CAP];
     int into_vacated_tail = (!growing && nh.c == tail.c && nh.r == tail.r);
     if (!into_vacated_tail) {
-      gs->mode = ST_GAME_OVER;
-      return ev | EV_GAME_OVER;
+      if (cell_is_obstacle(gs, nh.c, nh.r) || !ghost_on) {
+        gs->mode = ST_GAME_OVER;
+        return ev | EV_GAME_OVER;
+      }
+      /* GHOST: đi xuyên qua thân (đầu sẽ chồng đốt thân — grace xử ở cuối bước). */
     }
   }
 
@@ -251,16 +337,49 @@ GameEvents game_step(GameState *gs, InputEvent in, uint16_t dt_ms)
   if (growing && w->len < WORM_CAP) {
     w->len++;
   }
-  grid_rebuild(gs);
+
+  /* T050: lá độc — co POISON_SHRINK đốt (sàn LEN_MIN); nếu đã ở sàn thì −20 điểm, KHÔNG Game Over. */
+  if (ate_poison) {
+    if (w->len > LEN_MIN) {
+      uint16_t shrink = POISON_SHRINK;
+      if ((uint16_t)(w->len - shrink) < LEN_MIN) shrink = (uint16_t)(w->len - LEN_MIN);
+      w->len = (uint16_t)(w->len - shrink);
+    } else {
+      gs->score = (gs->score > (uint32_t)POISON_PENALTY) ? (gs->score - POISON_PENALTY) : 0u;
+    }
+    gs->leaf_poison.type = LEAF_NONE;
+    ev |= EV_ATE_POISON;
+  }
+
+  grid_rebuild(gs);                            /* sau khi chốt len (mọc/co) */
   ev |= EV_MOVED;
 
-  /* T033: hiệu lực ăn lá thường — điểm, đếm, sinh lá mới ở ô trống. */
+  /* T049: lá vàng — +50 điểm, đã mọc ở trên, biến mất. */
+  if (ate_gold) {
+    gs->score += SCORE_GOLD;
+    gs->leaf_gold.type = LEAF_NONE;
+    ev |= EV_ATE_GOLD;
+  }
+
+  /* T052: power-up — bật/refresh đồng hồ hiệu lực theo loại (stack độc lập). */
+  if (ate_pu) {
+    PowerType pt = gs->leaf_pu.pu_type;
+    if (pt >= PU_SPEED && pt <= PU_PHASE) {
+      gs->power[pt - 1] = PU_EFFECT_MS;
+    }
+    gs->leaf_pu.type = LEAF_NONE;
+    ev |= EV_ATE_POWERUP;
+  }
+
+  /* T033/T044: hiệu lực ăn lá thường — điểm, đếm, sinh lá mới, rút lá đặc biệt, kiểm qua màn. */
   if (ate_normal) {
     gs->score += SCORE_LEAF;
     gs->leaves_eaten++;
     gs->leaf_normal.type = LEAF_NONE;
     int placed = spawn_leaf(gs, &gs->leaf_normal, LEAF_NORMAL, PU_NONE);
     ev |= EV_ATE_NORMAL;
+
+    roll_specials(gs);                         /* T049/T050/T052: rút vàng/độc/power-up theo level */
 
     /* T044: qua màn khi đạt target HOẶC sân đầy (không còn ô sinh lá → coi như thắng màn).
      * KHÔNG tự sang màn — chờ IN_SELECT ở game_input_ui (FR-021). */
@@ -276,6 +395,22 @@ GameEvents game_step(GameState *gs, InputEvent in, uint16_t dt_ms)
       }
     }
   }
+
+  /* ===== Hạ đồng hồ ở CUỐI bước theo dt_ms thực (lá có hạn + power-up) ===== */
+  ev |= leaf_age(&gs->leaf_gold, dt_ms);       /* lá vàng hết hạn → EV_LEAF_EXPIRED */
+  ev |= leaf_age(&gs->leaf_pu,   dt_ms);       /* power-up trên sân hết hạn */
+
+  for (int k = 0; k < PU_KINDS; k++) {
+    if (gs->power[k] > 0) {
+      gs->power[k] -= (int32_t)dt_ms;
+      if (gs->power[k] < 0) gs->power[k] = 0;
+    }
+  }
+  /* T053: GHOST hết giờ khi đầu CÒN chồng thân → gia hạn ngầm tới khi đầu rời khỏi (không chết oan). */
+  if (gs->power[PU_GHOST - 1] == 0 && ghost_on && head_overlaps_body(gs)) {
+    gs->power[PU_GHOST - 1] = 1;
+  }
+
   return ev;
 }
 

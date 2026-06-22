@@ -5,7 +5,9 @@
 /* render — ánh xạ GameState → lệnh vẽ gfx (chỉ gọi gfx_*, KHÔNG chạm HAL — NT IV/V).
  * T024 (M2): vẽ HUD + sân + sâu, dispatch theo `mode`. M2 vẽ lại toàn khung mỗi tick
  * (chấp nhận được ở tốc snake, research §14); dirty-rect tối ưu ở T036+.
- * Bảng màu: contracts/render-gfx.md (research §15). */
+ * Bảng màu: contracts/render-gfx.md (research §15).
+ * ⚠️ Lá/sâu hiện TÔ-MÀU-PHẲNG là TẠM — visual cuối (lá có dáng+gân, sâu phân khúc rõ) ở T091
+ *    (research §15 "YÊU CẦU CHỐT"): ghép fill_rect/ô hoặc sprite gfx_blit (gộp theme T070). */
 
 /* Ô lưới (c,r) → pixel landscape: sân nằm DƯỚI dải HUD cao HUD_H. */
 static void cell_fill(int c, int r, uint16_t color)
@@ -39,12 +41,41 @@ static void draw_hud(const GameState *gs)
   p += put_u32(line + p, (uint32_t)(gs->level_idx + 1));
   line[p] = 0;
   gfx_text(6, 8, line, gfx_rgb565(235, 235, 235), bg);
+
+  /* T054: power-up đang hiệu lực — chữ + giây còn lại, căn phải HUD. */
+  static const char PU_CH[PU_KINDS] = { 'S', 'W', 'G', 'P' };  /* Speed/sloW/Ghost/Phase */
+  char pwr[20];
+  int q = 0;
+  for (int k = 0; k < PU_KINDS && q < 16; k++) {
+    if (gs->power[k] > 0) {
+      uint32_t sec = (uint32_t)((gs->power[k] + 999) / 1000);   /* làm tròn lên */
+      pwr[q++] = PU_CH[k];
+      q += put_u32(pwr + q, sec);
+      pwr[q++] = ' ';
+    }
+  }
+  if (q > 0) {
+    pwr[q - 1] = 0;                              /* bỏ dấu cách cuối */
+    gfx_text(SCREEN_W - q * 8, 8, pwr, gfx_rgb565(120, 220, 235), bg);
+  }
 }
 
 static void draw_leaf(const Leaf *lf, uint16_t color)
 {
   if (lf->type != LEAF_NONE) {
     cell_fill(lf->pos.c, lf->pos.r, color);
+  }
+}
+
+/* T054: màu power-up theo loại (research §15): SPEED cyan / SLOW lam / GHOST trắng / PHASE cam-gạch. */
+static uint16_t pu_color(PowerType t)
+{
+  switch (t) {
+    case PU_SPEED: return gfx_rgb565(40, 200, 220);
+    case PU_SLOW:  return gfx_rgb565(40, 90, 220);
+    case PU_GHOST: return gfx_rgb565(235, 235, 235);
+    case PU_PHASE: return gfx_rgb565(200, 90, 40);
+    default:       return gfx_rgb565(40, 200, 220);
   }
 }
 
@@ -64,9 +95,21 @@ static void draw_playing(const GameState *gs)
 
   /* Lá (research §15). */
   draw_leaf(&gs->leaf_normal, gfx_rgb565(46, 204, 64));
-  draw_leaf(&gs->leaf_gold,   gfx_rgb565(255, 215, 0));
   draw_leaf(&gs->leaf_poison, gfx_rgb565(177, 13, 201));
-  draw_leaf(&gs->leaf_pu,     gfx_rgb565(40, 200, 220));
+
+  /* T051: lá vàng nhấp nháy — ẩn ô ~500ms một nhịp khi đồng hồ life_ms còn dương. */
+  if (gs->leaf_gold.type == LEAF_GOLD) {
+    int32_t life = gs->leaf_gold.life_ms;
+    int blink_on = (life < 0) || (((life / 500) & 1) == 0);   /* vô hạn → luôn hiện */
+    if (blink_on) {
+      draw_leaf(&gs->leaf_gold, gfx_rgb565(255, 215, 0));
+    }
+  }
+
+  /* T054: power-up — màu theo loại (research §15). */
+  if (gs->leaf_pu.type == LEAF_POWERUP) {
+    draw_leaf(&gs->leaf_pu, pu_color(gs->leaf_pu.pu_type));
+  }
 
   /* Sâu: đầu cam đậm + chấm mắt, thân vàng-cam. */
   const Worm *w = &gs->worm;

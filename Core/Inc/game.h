@@ -39,7 +39,7 @@ extern const uint16_t TARGET_LEAVES[LEVELS];  /* {6,8,10,12,14} */
 #define SCORE_GOLD        50
 #define POISON_SHRINK     2
 #define POISON_PENALTY    20
-#define GOLD_CHANCE_PCT   15
+#define GOLD_CHANCE_PCT   40
 #define GOLD_LIFE_MS      8000
 #define POISON_CHANCE_PCT 20       /* mở khoá từ level >= 2 */
 #define PU_CHANCE_PCT     12       /* mở khoá từ level >= 3 */
@@ -107,7 +107,7 @@ typedef struct {
   uint8_t   level_idx;               /* màn hiện tại 0..LEVELS-1 */
   uint16_t  leaves_eaten;            /* lá thường đã ăn trong màn */
   uint32_t  score;                   /* điểm tích luỹ (clamp >= 0) */
-  uint16_t  step_ms;                 /* chu kỳ tick hiệu dụng (sau hệ số power-up) */
+  uint16_t  step_ms;                 /* nhịp tick CƠ BẢN của màn (hệ số power-up áp ở game_step_ms) */
   uint8_t   menu_sel;                /* lựa chọn đang sáng ở MENU */
   uint32_t  rng;                     /* state PRNG (xorshift32) */
 } GameState;
