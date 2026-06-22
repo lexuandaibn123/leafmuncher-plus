@@ -46,8 +46,13 @@ static void draw_hud(const GameState *gs)
   while (*s) line[p++] = *s++;
   p += put_u32(line + p, gs->score);
   line[p++] = ' '; line[p++] = ' ';
-  line[p++] = 'L'; line[p++] = 'V'; line[p++] = ' ';
-  p += put_u32(line + p, (uint32_t)(gs->level_idx + 1));
+  if (gs->play_mode == MODE_ENDLESS) {           /* US5: Vô tận không có level → nhãn ENDLESS */
+    const char *m = "ENDLESS";
+    while (*m) line[p++] = *m++;
+  } else {
+    line[p++] = 'L'; line[p++] = 'V'; line[p++] = ' ';
+    p += put_u32(line + p, (uint32_t)(gs->level_idx + 1));
+  }
   line[p] = 0;
   gfx_text(6, 8, line, gfx_rgb565(235, 235, 235), bg, 1);
 
@@ -218,8 +223,8 @@ static void draw_menu(const GameState *gs)
   gfx_fill_rect(tx, 60, 12 * 16, 2, gfx_rgb565(60, 120, 60));   /* gạch accent dưới tiêu đề */
 
   draw_menu_item(SCREEN_W / 2, 90,  176, 32, "START",   5, gs->menu_sel == 0, 0);
-  draw_menu_item(SCREEN_W / 2, 128, 176, 32, "ENDLESS", 7, gs->menu_sel == 1, 1);
-  draw_menu_item(SCREEN_W / 2, 166, 176, 32, "THEME",   5, gs->menu_sel == 2, 1);
+  draw_menu_item(SCREEN_W / 2, 128, 176, 32, "ENDLESS", 7, gs->menu_sel == 1, 0);  /* US5: chạy được */
+  draw_menu_item(SCREEN_W / 2, 166, 176, 32, "THEME",   5, gs->menu_sel == 2, 1);  /* US6: SOON */
 
   gfx_text((SCREEN_W - 19 * 8) / 2, 210, "AXIS: MOVE  BTN: OK", gfx_rgb565(90, 92, 112), bg, 1);
 }

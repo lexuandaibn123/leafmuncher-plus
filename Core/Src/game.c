@@ -3,10 +3,11 @@
 #include "levels.h"
 #include <string.h>
 
-/* US4: MENU có 3 mục điều hướng được: 0=START (chạy), 1=ENDLESS, 2=THEME ("SOON" — mock,
- * chọn được nhưng chưa có chức năng; nối ở US5/US6). */
+/* MENU có 3 mục: 0=START (chơi Màn), 1=ENDLESS (chơi Vô tận — US5), 2=THEME ("SOON" — US6). */
 #define MENU_ITEMS    3
 #define MENU_START    0
+#define MENU_ENDLESS  1
+#define MENU_THEME    2
 
 /* game — logic thuần (Nguyên tắc II: KHÔNG gọi HAL/CMSIS/FreeRTOS).
  * T019: khởi tạo phiên + truy vấn đọc-chỉ. game_step/game_input_ui ở US1+ (T032–T035, T057+).
@@ -30,15 +31,18 @@ static Dir dir_opposite(Dir d)
   }
 }
 
-/* Dựng lại occupied[][] = chướng ngại màn (T042) + thân sâu. */
+/* Dựng lại occupied[][] = chướng ngại màn (T042) + thân sâu.
+ * MODE_ENDLESS (T072): sân mở — KHÔNG nạp chướng ngại (research §18). */
 static void grid_rebuild(GameState *gs)
 {
   memset(gs->occupied, 0, sizeof gs->occupied);
-  const Level *lv = level_get(gs->level_idx);
-  if (lv != 0 && lv->obstacles != 0) {
-    for (int r = 0; r < ROWS; r++)
-      for (int c = 0; c < COLS; c++)
-        if (lv->obstacles[r][c]) gs->occupied[r][c] = 1u;
+  if (gs->play_mode != MODE_ENDLESS) {
+    const Level *lv = level_get(gs->level_idx);
+    if (lv != 0 && lv->obstacles != 0) {
+      for (int r = 0; r < ROWS; r++)
+        for (int c = 0; c < COLS; c++)
+          if (lv->obstacles[r][c]) gs->occupied[r][c] = 1u;
+    }
   }
   for (uint16_t k = 0; k < gs->worm.len; k++) {
     uint16_t i = (uint16_t)((gs->worm.head_idx + k) % WORM_CAP);
@@ -116,7 +120,8 @@ static void reset_session(GameState *gs)
   gs->level_idx    = 0u;
   gs->score        = 0u;
   gs->leaves_eaten = 0u;
-  gs->step_ms      = STEP_MS[0];
+  /* T072: nhịp khởi đầu theo chế độ — ENDLESS bắt từ ENDLESS_STEP0 rồi giảm dần (research §18). */
+  gs->step_ms      = (gs->play_mode == MODE_ENDLESS) ? ENDLESS_STEP0 : STEP_MS[0];
 
   gs->leaf_normal.type = LEAF_NONE;
   gs->leaf_gold.type   = LEAF_NONE;
@@ -230,21 +235,23 @@ static int head_overlaps_body(const GameState *gs)
 }
 
 /* T049/T050/T052: sau khi ăn lá thường, rút ngẫu nhiên lá đặc biệt/power-up (research §6).
- * Mở khoá dần: vàng mọi màn; độc từ level_idx>=1 (lv2); power-up từ level_idx>=2 (lv3).
+ * Mở khoá dần (MODE_LEVEL): vàng mọi màn; độc từ level_idx>=1 (lv2); power-up từ level_idx>=2 (lv3).
+ * MODE_ENDLESS (research §18): tất cả mở khoá NGAY từ đầu.
  * Chỉ sinh khi loại đó CHƯA có trên sân; mỗi loại ≤ 1. Mọi rút đi qua rng → xác định. */
 static void roll_specials(GameState *gs)
 {
+  int endless = (gs->play_mode == MODE_ENDLESS);
   if (gs->leaf_gold.type == LEAF_NONE &&
       rng_range(&gs->rng, 100u) < GOLD_CHANCE_PCT) {
     if (spawn_leaf(gs, &gs->leaf_gold, LEAF_GOLD, PU_NONE)) {
       gs->leaf_gold.life_ms = GOLD_LIFE_MS;          /* lá vàng có hạn giờ */
     }
   }
-  if (gs->level_idx >= 1u && gs->leaf_poison.type == LEAF_NONE &&
+  if ((endless || gs->level_idx >= 1u) && gs->leaf_poison.type == LEAF_NONE &&
       rng_range(&gs->rng, 100u) < POISON_CHANCE_PCT) {
     spawn_leaf(gs, &gs->leaf_poison, LEAF_POISON, PU_NONE);  /* life_ms=-1: tồn tại tới khi bị ăn */
   }
-  if (gs->level_idx >= 2u && gs->leaf_pu.type == LEAF_NONE &&
+  if ((endless || gs->level_idx >= 2u) && gs->leaf_pu.type == LEAF_NONE &&
       rng_range(&gs->rng, 100u) < PU_CHANCE_PCT) {
     PowerType pt = (PowerType)(PU_SPEED + rng_range(&gs->rng, PU_KINDS));  /* đều trong 4 loại */
     if (spawn_leaf(gs, &gs->leaf_pu, LEAF_POWERUP, pt)) {
@@ -348,15 +355,15 @@ GameEvents game_step(GameState *gs, InputEvent in, uint16_t dt_ms)
     w->len++;
   }
 
-  /* T050: lá độc — co POISON_SHRINK đốt (sàn LEN_MIN); nếu đã ở sàn thì −20 điểm, KHÔNG Game Over. */
+  /* T050: lá độc — co POISON_SHRINK đốt (sàn LEN_MIN) VÀ luôn phạt POISON_PENALTY điểm
+   * (clamp ≥0) để phản hồi rõ ở HUD; KHÔNG gây Game Over. */
   if (ate_poison) {
     if (w->len > LEN_MIN) {
       uint16_t shrink = POISON_SHRINK;
       if ((uint16_t)(w->len - shrink) < LEN_MIN) shrink = (uint16_t)(w->len - LEN_MIN);
       w->len = (uint16_t)(w->len - shrink);
-    } else {
-      gs->score = (gs->score > (uint32_t)POISON_PENALTY) ? (gs->score - POISON_PENALTY) : 0u;
     }
+    gs->score = (gs->score > (uint32_t)POISON_PENALTY) ? (gs->score - POISON_PENALTY) : 0u;
     gs->leaf_poison.type = LEAF_NONE;
     ev |= EV_ATE_POISON;
   }
@@ -391,17 +398,27 @@ GameEvents game_step(GameState *gs, InputEvent in, uint16_t dt_ms)
 
     roll_specials(gs);                         /* T049/T050/T052: rút vàng/độc/power-up theo level */
 
-    /* T044: qua màn khi đạt target HOẶC sân đầy (không còn ô sinh lá → coi như thắng màn).
-     * KHÔNG tự sang màn — chờ IN_SELECT ở game_input_ui (FR-021). */
-    const Level *lv = level_get(gs->level_idx);
-    uint16_t target = (lv != 0) ? lv->target_leaves : TARGET_LEAVES[gs->level_idx];
-    if (gs->leaves_eaten >= target || placed == 0) {
-      if (level_is_last(gs->level_idx)) {
-        gs->mode = ST_WIN;
-        ev |= EV_WIN;
-      } else {
-        gs->mode = ST_LEVEL_COMPLETE;
-        ev |= EV_LEVEL_DONE;
+    if (gs->play_mode == MODE_ENDLESS) {
+      /* T072: Vô tận — KHÔNG có target/LEVEL_COMPLETE/WIN; nhịp giảm dần theo số lá ăn
+       * (ENDLESS_STEP_DEC mỗi ENDLESS_RAMP_EVERY lá, clamp sàn STEP_MS_MIN) — research §18. */
+      if (gs->leaves_eaten % ENDLESS_RAMP_EVERY == 0u && gs->step_ms > STEP_MS_MIN) {
+        uint16_t s = (uint16_t)(gs->step_ms - ENDLESS_STEP_DEC);
+        gs->step_ms = (s < STEP_MS_MIN) ? STEP_MS_MIN : s;
+      }
+      (void)placed;                            /* sân đầy ở Vô tận: hiếm; không kết thúc màn */
+    } else {
+      /* T044: MODE_LEVEL — qua màn khi đạt target HOẶC sân đầy (coi như thắng màn).
+       * KHÔNG tự sang màn — chờ IN_SELECT ở game_input_ui (FR-021). */
+      const Level *lv = level_get(gs->level_idx);
+      uint16_t target = (lv != 0) ? lv->target_leaves : TARGET_LEAVES[gs->level_idx];
+      if (gs->leaves_eaten >= target || placed == 0) {
+        if (level_is_last(gs->level_idx)) {
+          gs->mode = ST_WIN;
+          ev |= EV_WIN;
+        } else {
+          gs->mode = ST_LEVEL_COMPLETE;
+          ev |= EV_LEVEL_DONE;
+        }
       }
     }
   }
@@ -441,9 +458,14 @@ void game_input_ui(GameState *gs, InputEvent in)
           gs->menu_sel++;
         }
       } else if (in.kind == IN_SELECT) {
-        if (gs->menu_sel == MENU_START) {    /* chỉ START vào ván; ENDLESS/THEME ("SOON") = no-op */
+        if (gs->menu_sel == MENU_START) {          /* chơi Màn (campaign) */
+          gs->play_mode = MODE_LEVEL;
+          game_start(gs);
+        } else if (gs->menu_sel == MENU_ENDLESS) { /* chơi Vô tận (US5) */
+          gs->play_mode = MODE_ENDLESS;
           game_start(gs);
         }
+        /* MENU_THEME ("SOON" — US6) = no-op */
       }
       break;
     case ST_PAUSED:

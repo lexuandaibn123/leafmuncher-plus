@@ -444,7 +444,7 @@ int main(void) {
     assert(g.mode == ST_PLAYING);
   }
 
-  /* ---- T047c: lá độc → co POISON_SHRINK đốt, KHÔNG Game Over ---- */
+  /* ---- T047c: lá độc → co POISON_SHRINK đốt + LUÔN phạt POISON_PENALTY điểm, KHÔNG Game Over ---- */
   {
     GameState g;
     game_init(&g, 0x9015E0u);
@@ -452,19 +452,19 @@ int main(void) {
     Worm *w = &g.worm;                           /* sâu dài 5 nằm ngang, đầu (10,6) */
     w->head_idx = 0u; w->len = 5u; w->dir = DIR_RIGHT; w->next_dir = DIR_RIGHT;
     for (int k = 0; k < 5; k++) { w->body[k].c = (int8_t)(10 - k); w->body[k].r = 6; }
+    g.score = 100u;                              /* để kiểm trừ điểm rõ */
     g.leaf_normal.type = LEAF_NORMAL;
     g.leaf_normal.pos.c = 0; g.leaf_normal.pos.r = 0; g.leaf_normal.life_ms = -1;
     g.leaf_poison.type = LEAF_POISON;            /* lá độc ngay trước đầu */
     g.leaf_poison.pos.c = 11; g.leaf_poison.pos.r = 6; g.leaf_poison.life_ms = -1;
     rebuild_occupied(&g);
-    uint32_t sc0 = g.score;
     GameEvents e = game_step(&g, (InputEvent){ IN_NONE, DIR_RIGHT }, g.step_ms);
     assert(e & EV_ATE_POISON);
     assert(!(e & EV_GAME_OVER));
     assert(g.mode == ST_PLAYING);
     assert(g.worm.len == (uint16_t)(5 - POISON_SHRINK));   /* co 2 → 3 */
     assert(g.leaf_poison.type == LEAF_NONE);
-    assert(g.score == sc0);                      /* trên sàn → không phạt điểm */
+    assert(g.score == (uint32_t)(100 - POISON_PENALTY));   /* luôn trừ điểm: 100 − 20 = 80 */
   }
 
   /* ---- T047d: lá độc khi đã ở sàn LEN_MIN → −20 điểm (clamp ≥ 0), giữ độ dài ---- */
@@ -625,8 +625,56 @@ int main(void) {
     assert(g.mode == ST_PLAYING);
   }
 
+  /* ================= US5 / M8 — chế độ Vô tận (T069) ================= */
+
+  /* ---- T069a: ENDLESS — nhịp giảm theo lá ăn, KHÔNG LEVEL_COMPLETE/WIN, không chướng ngại ---- */
+  {
+    GameState g;
+    game_init(&g, 0x5E5u);
+    g.play_mode = MODE_ENDLESS;
+    game_start(&g);
+    assert(g.mode == ST_PLAYING);
+    assert(g.play_mode == MODE_ENDLESS);
+    assert(g.step_ms == ENDLESS_STEP0);
+    uint16_t step0 = g.step_ms;
+
+    /* Ăn ENDLESS_RAMP_EVERY lá dọc hàng giữa → nhịp giảm đúng 1 lần ENDLESS_STEP_DEC. */
+    for (int i = 0; i < ENDLESS_RAMP_EVERY; i++) {
+      g.leaf_gold.type = LEAF_NONE;            /* cô lập: bỏ lá đặc biệt roll_specials sinh */
+      g.leaf_poison.type = LEAF_NONE;
+      g.leaf_pu.type = LEAF_NONE;
+      Cell h = worm_seg(&g, 0);
+      g.leaf_normal.type = LEAF_NORMAL;
+      g.leaf_normal.pos.c = (int8_t)(h.c + 1); g.leaf_normal.pos.r = h.r;
+      g.leaf_normal.life_ms = -1;
+      GameEvents e = game_step(&g, (InputEvent){ IN_NONE, DIR_RIGHT }, g.step_ms);
+      assert(e & EV_ATE_NORMAL);
+      assert(g.mode == ST_PLAYING);            /* không bao giờ qua màn / thắng */
+      assert(!(e & (EV_LEVEL_DONE | EV_WIN)));
+    }
+    assert(g.leaves_eaten == ENDLESS_RAMP_EVERY);
+    assert(g.step_ms == (uint16_t)(step0 - ENDLESS_STEP_DEC));
+    assert(occupied_count(&g) == g.worm.len);  /* sân mở: occupied chỉ gồm thân (không chướng ngại) */
+  }
+
+  /* ---- T069b: ENDLESS nhịp clamp sàn STEP_MS_MIN, không xuống thấp hơn ---- */
+  {
+    GameState g;
+    game_init(&g, 0x5E6u);
+    g.play_mode = MODE_ENDLESS;
+    game_start(&g);
+    g.step_ms = STEP_MS_MIN;                   /* đã ở sàn */
+    Cell h = worm_seg(&g, 0);
+    g.leaf_normal.type = LEAF_NORMAL;
+    g.leaf_normal.pos.c = (int8_t)(h.c + 1); g.leaf_normal.pos.r = h.r; g.leaf_normal.life_ms = -1;
+    g.leaves_eaten = (uint16_t)(ENDLESS_RAMP_EVERY - 1);   /* lá kế là mốc ramp */
+    GameEvents e = game_step(&g, (InputEvent){ IN_NONE, DIR_RIGHT }, g.step_ms);
+    assert(e & EV_ATE_NORMAL);
+    assert(g.step_ms == STEP_MS_MIN);          /* không xuống dưới sàn */
+  }
+
   printf("test_game: all assertions passed (T019 init/start + T028-T031 core + "
-         "T040 obstacles/levels + T047-T048 leaves/power-ups + T056 menu/pause); "
-         "sizeof(GameState)=%lu\n", (unsigned long)sizeof(GameState));
+         "T040 obstacles/levels + T047-T048 leaves/power-ups + T056 menu/pause + "
+         "T069 endless); sizeof(GameState)=%lu\n", (unsigned long)sizeof(GameState));
   return 0;
 }

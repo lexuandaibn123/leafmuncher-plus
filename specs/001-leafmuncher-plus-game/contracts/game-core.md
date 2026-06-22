@@ -55,7 +55,7 @@ typedef uint16_t GameEvents;            // bitmask
 | Đầu vào ô lá thường | `len+1`, `score+10`, sinh lá thường mới ở ô trống ngẫu nhiên | FR-004 |
 | Đầu vào ô lá vàng | `score+50`, `len+1`, lá vàng biến mất | FR-010 |
 | Lá vàng quá `GOLD_LIFE_MS` chưa ăn | biến mất (`EV_LEAF_EXPIRED`) | FR-010 |
-| Đầu vào ô lá độc | co 2 đốt (sàn `LEN_MIN`; nếu ở sàn thì `−20` điểm), KHÔNG Game Over | FR-011 |
+| Đầu vào ô lá độc | co 2 đốt (sàn `LEN_MIN`) **và luôn** `−20` điểm (clamp ≥0), KHÔNG Game Over | FR-011 |
 | Đầu vào ô power-up | `power.active[type]=PU_EFFECT_MS`; cùng loại = refresh | FR-012 |
 | Đầu chạm biên | GAME_OVER, trừ khi PHASE bật → wrap cạnh đối diện | FR-005, FR-012 |
 | Đầu chạm thân (trừ ô đuôi sẽ nhả) | GAME_OVER, trừ khi GHOST bật | FR-005, FR-012 |
