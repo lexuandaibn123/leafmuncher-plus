@@ -95,12 +95,16 @@ Struct trung tâm mà `game_step` thao tác; cũng là snapshot cho render.
 | `score` | `uint32_t` | điểm tích luỹ (clamp ≥ 0) |
 | `step_ms` | `uint16_t` | chu kỳ tick hiệu dụng (sau hệ số power-up) |
 | `menu_sel` | `uint8_t` | lựa chọn đang sáng ở MENU |
+| `theme_id` | `uint8_t` | `ThemeId` đang chọn — **COSMETIC**: `game_step` bỏ qua, chỉ `render` đọc (§2.6) |
 | `rng` | `uint32_t` | state PRNG (xorshift32) |
 
-### 2.6 Theme (ngoài logic thuần — `theme.c`)
-Dữ liệu hiển thị `const`, render đọc. KHÔNG nằm trong `GameState` (không ảnh hưởng logic). Xem
-[contracts/theme.md](contracts/theme.md). Theme đang chọn lưu ở `store` (`theme_id`), nạp vào biến hiển thị
-toàn cục do `render`/`tasks` giữ.
+### 2.6 Theme (`theme.c` — dữ liệu; lựa chọn ở `GameState.theme_id`)
+Bảng `Theme` `const` trong Flash (màu + sprite chướng ngại), `render` đọc. Xem
+[contracts/theme.md](contracts/theme.md). **Lựa chọn theme** giữ ở `GameState.theme_id` (cosmetic — logic
+không đọc; nằm trong snapshot nên render & save/resume thấy luôn). MENU đổi theme bằng `theme_next` (US6/T075).
+> *Trước đây dự kiến để theme ở biến toàn cục `render`/`tasks` + `store`; chuyển vào `GameState.theme_id`
+> (2026-06-22) cho gọn luồng snapshot→render khi `store` chưa có. Persist qua Flash sẽ đọc/ghi `theme_id`
+> này khi làm `store` (US5/T076).*
 
 ### 2.7 Persistent Store (ngoài logic thuần — `store.c`)
 Struct lưu Flash, giữ qua tắt nguồn (FR-027). Xem [contracts/store.md](contracts/store.md).
