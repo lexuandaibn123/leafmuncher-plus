@@ -49,12 +49,13 @@ demo mà không đổi kiến trúc.
 |---|---|---|---|
 | Lá thường | +10 | +1 | ăn xong sinh lá thường mới ở ô trống ngẫu nhiên (FR-004) |
 | Lá vàng | +50 | +1 | hiếm, có hạn giờ, tự biến mất (FR-010) |
-| Lá độc | −20 nếu ở `LEN_MIN`, ngược lại co **−2 đốt** | −2 (sàn `LEN_MIN`) | không Game Over (FR-011) |
+| Lá độc | **luôn −20** | co **−2 đốt** (sàn `LEN_MIN`) | không Game Over (FR-011) |
 
-- **Decision**: lá độc **co 2 đốt**; nếu độ dài đã ở `LEN_MIN` thì **−20 điểm** thay vì co (không bao giờ
-  để length < `LEN_MIN`). Điểm không âm (clamp ≥ 0).
-- **Rationale**: deterministic, dễ unit-test; bảo toàn bất biến độ dài.
-- **Alternatives**: lá độc gây Game Over (bỏ — spec cấm); co 1 đốt (chọn 2 cho cảm giác "phạt" rõ).
+- **Decision**: lá độc **co 2 đốt** (xuống tới sàn `LEN_MIN`, không bao giờ < `LEN_MIN`) **và luôn −20 điểm**
+  (clamp ≥ 0). Phạt điểm áp mọi lúc — kể cả khi không co được nữa — để có phản hồi rõ ở HUD *(tunable;
+  trước đây −20 chỉ khi ở sàn, đổi 2026-06-22 vì co 2 đốt khó thấy, người chơi tưởng "không tác dụng")*.
+- **Rationale**: deterministic, dễ unit-test; bảo toàn bất biến độ dài; phản hồi điểm rõ ràng.
+- **Alternatives**: −20 chỉ khi ở sàn (bỏ — phản hồi mờ); lá độc gây Game Over (bỏ — spec cấm).
 
 ## 6. Sinh lá vàng / lá độc / power-up *(tunable)*
 

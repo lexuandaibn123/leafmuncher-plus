@@ -153,7 +153,7 @@ Khi tạm dừng, người chơi có thể **Lưu & Thoát** về Home; ván đa
 - **FR-008**: Hệ thống MUST tăng tốc độ cơ bản của sâu khi lên màn mới.
 - **FR-009**: Hệ thống MUST hiển thị trạng thái WIN khi hoàn thành màn cuối.
 - **FR-010**: Hệ thống MUST hỗ trợ lá vàng: cộng 50 điểm, xuất hiện hiếm, và tự biến mất sau một khoảng thời gian nếu không ăn.
-- **FR-011**: Hệ thống MUST hỗ trợ lá độc: ăn vào làm sâu **co 2 đốt**; nếu sâu đã ở độ dài tối thiểu thì **−20 điểm** thay vì co. Không gây Game Over. Điểm không âm.
+- **FR-011**: Hệ thống MUST hỗ trợ lá độc: ăn vào làm sâu **co 2 đốt** (xuống tới sàn tối thiểu) **và luôn −20 điểm** (phản hồi rõ ở HUD). Không gây Game Over. Điểm không âm.
 - **FR-012**: Hệ thống MUST hỗ trợ power-up có thời hạn: **tăng tốc, làm chậm, bất tử (xuyên thân), xuyên tường**; mỗi power-up có đồng hồ đếm ngược và tự tắt khi hết giờ. "Xuyên tường" = **đầu sâu ra khỏi biên thì hiện ra ở cạnh đối diện (wrap)**; chướng ngại vật **vẫn chặn**. Khi nhiều loại cùng hiệu lực thì chạy song song (stack độc lập).
 - **FR-013**: Hệ thống MUST đảm bảo lá và power-up không sinh đè lên thân sâu hoặc chướng ngại.
 - **FR-014**: Hệ thống MUST cung cấp các trạng thái MENU, PLAYING, PAUSED, GAME_OVER, LEVEL_COMPLETE, WIN và chuyển trạng thái hợp lệ giữa chúng.
