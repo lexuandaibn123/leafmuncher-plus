@@ -17,7 +17,7 @@ void     gfx_clear(uint16_t color);                               /* R2M tô c�
 void     gfx_fill_rect(int x, int y, int w, int h, uint16_t c);   /* R2M — toạ độ landscape, tự clip */
 void     gfx_blit(const uint16_t *src, int x, int y, int w, int h);            /* M2M (T010) */
 void     gfx_blend_rect(int x, int y, int w, int h, uint16_t c, uint8_t a);    /* M2M_BLEND (T012) */
-void     gfx_text(int x, int y, const char *s, uint16_t fg, uint16_t bg);      /* font 8×16 (T010) */
+void     gfx_text(int x, int y, const char *s, uint16_t fg, uint16_t bg, int scale); /* font 8×16, phóng to ×scale (scale=1 cỡ gốc) */
 void     gfx_present(void);                                       /* hoán đổi buffer (T011: tại VSYNC) */
 uint16_t gfx_rgb565(uint8_t r, uint8_t g, uint8_t b);             /* helper màu */
 

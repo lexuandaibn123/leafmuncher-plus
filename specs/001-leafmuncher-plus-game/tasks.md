@@ -175,16 +175,16 @@ GAME_OVER chọn chơi lại → ván mới điểm 0.
 
 ### Tests for User Story 4 (host) ⚠️
 
-- [ ] T056 [US4] Test chuyển trạng thái UI: MENU select→start; pause toggle; replay reset (level 0, score 0) trong `test/test_game.c`
+- [x] T056 [US4] Test chuyển trạng thái UI: MENU select→start; pause toggle; replay reset (level 0, score 0) trong `test/test_game.c` — T056a-c; cập nhật test cũ (GAME_OVER/WIN → MENU rồi Start)
 
 ### Implementation for User Story 4
 
-- [ ] T057 [US4] `game_input_ui`: điều hướng MENU (lên/xuống đổi `menu_sel`, SELECT = start) trong `Core/Src/game.c`
-- [ ] T058 [US4] Pause toggle (nút chính JOY_SW = `IN_SELECT`, FSM phân tách theo `mode`) PLAYING↔PAUSED, dừng cập nhật game khi PAUSED trong `Core/Src/game.c` + `Core/Src/apptasks.c` (phụ thuộc T022)
-- [ ] T059 [US4] GAME_OVER/WIN → chơi lại (SELECT → MENU rồi start, reset điểm 0) trong `Core/Src/game.c`
-- [ ] T060 [US4] Render MENU + overlay PAUSED (`gfx_blend_rect` mờ + hộp) trong `Core/Src/render.c` (phụ thuộc T036, T012)
-- [ ] T061 [US4] Đặt MENU làm điểm vào lúc boot (thay T038 boot-thẳng-PLAYING); **chốt bộ đếm TIM7/DWT tại sườn nhấn Start XOR `input_entropy()` → re-seed mỗi ván qua `game_init`** (research §13) trong `Core/Src/freertos.c`/`game.c` USER CODE (phụ thuộc T025, T057)
-- [ ] T062 [US4] `make -C test` xanh + `./build.sh` + on-board M7 (Acceptance US4, vòng lặp đầy đủ)
+- [x] T057 [US4] `game_input_ui`: điều hướng MENU (lên/xuống đổi `menu_sel` clamp `[0,MENU_ITEMS)`, SELECT = start) trong `Core/Src/game.c` — `MENU_ITEMS=1` (US4 chỉ START; US5/US7 mở rộng)
+- [x] T058 [US4] Pause toggle (nút chính JOY_SW = `IN_SELECT`, FSM phân tách theo `mode`) PLAYING↔PAUSED, dừng cập nhật game khi PAUSED — `game_step` IN_SELECT→PAUSED (no-op move), `game_input_ui` PAUSED+SELECT→resume trong `Core/Src/game.c`
+- [x] T059 [US4] GAME_OVER/WIN → chơi lại (SELECT → MENU; Start sau đó reset điểm 0) trong `Core/Src/game.c`
+- [x] T060 [US4] Render MENU (tiêu đề + mục START sáng) + overlay PAUSED (`gfx_blend_rect` mờ + hộp) trong `Core/Src/render.c`
+- [x] T061 [US4] Boot dừng ở MENU (bỏ `game_start` trong `tasks_start`, thay T038); **re-seed RNG tại sườn nhấn Start = `__HAL_TIM_GET_COUNTER(htim7)` XOR `input_entropy()` → `rng_seed` rồi `game_start`** (research §13) trong `Core/Src/apptasks.c` (GameTask) — giữ `play_mode`/`menu_sel` cho US5
+- [ ] T062 [US4] `make -C test` xanh ✓ + `./build.sh` 0 lỗi ✓; **on-board M7 chờ nghiệm thu** (Acceptance US4, vòng lặp đầy đủ)
 
 **Checkpoint**: Toàn bộ 4 user story chạy độc lập — game hoàn chỉnh.
 

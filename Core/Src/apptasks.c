@@ -6,6 +6,7 @@
 #include "input.h"
 #include "render.h"
 #include "gfx.h"
+#include "rng.h"          /* T061 — re-seed RNG tại sườn nhấn Start */
 
 /* apptasks — lớp tích hợp HAL + vòng đời FreeRTOS.
  *   T016 — LED helper + safe-stop
@@ -125,15 +126,34 @@ static void GameTask(void *argument)
 {
   (void)argument;
   uint32_t t = osKernelGetTickCount();
+  int s_nav_neutral = 1;          /* edge-detect joystick menu: 1 = cần ở trung tâm, cho gạt kế */
   for (;;) {
     t += ms_to_ticks(game_step_ms(&s_game));
     osDelayUntil(t);
 
     InputEvent in = input_q_latest();
     if (s_game.mode == ST_PLAYING) {
-      (void)game_step(&s_game, in, game_step_ms(&s_game));   /* bước chơi (US1) */
+      (void)game_step(&s_game, in, game_step_ms(&s_game));   /* bước chơi (US1); IN_SELECT → PAUSED */
     } else {
-      game_input_ui(&s_game, in);   /* GAME_OVER → nút chính chơi lại (M3); MENU/PAUSE ở US4 */
+      /* Ngoài PLAYING: edge-detect joystick để 1 lần gạt = 1 bước menu (tránh giữ cần nhảy
+       * nhiều mục). IN_DIR chỉ xử khi vừa từ trung tâm (s_nav_neutral); nhả cần (IN_NONE) reset. */
+      if (in.kind == IN_DIR) {
+        if (s_nav_neutral) {
+          game_input_ui(&s_game, in);
+          s_nav_neutral = 0;
+        }
+      } else {
+        if (in.kind == IN_SELECT) {
+          /* T061: re-seed RNG tại sườn nhấn Start (MENU+SELECT) → mỗi ván chuỗi lá khác nhau
+           * (TIM7 counter XOR entropy LSB ADC, research §13). game_start giữ state rng đã seed. */
+          if (s_game.mode == ST_MENU) {
+            uint32_t seed = input_entropy() ^ (uint32_t)__HAL_TIM_GET_COUNTER(&htim7);
+            rng_seed(&s_game.rng, seed);
+          }
+          game_input_ui(&s_game, in);   /* Start · resume · advance · replay (nút edge sẵn ở input) */
+        }
+        s_nav_neutral = 1;              /* về trung tâm / vừa bấm nút → cho phép gạt kế */
+      }
     }
 
     osMutexAcquire(s_snap_mutex, osWaitForever);
@@ -182,10 +202,10 @@ void tasks_start(void)
     safe_stop();
   }
 
-  /* Seed RNG = bộ đếm TIM7 (thời điểm boot) XOR entropy LSB ADC (research §13). */
+  /* Seed RNG ban đầu = bộ đếm TIM7 (boot) XOR entropy LSB ADC (research §13); ván thật
+   * re-seed lại tại sườn nhấn Start trong GameTask (T061). */
   uint32_t seed = input_entropy() ^ (uint32_t)__HAL_TIM_GET_COUNTER(&htim7);
-  game_init(&s_game, seed);
-  game_start(&s_game);          /* M2 demo: vào PLAYING ngay (MENU/SELECT ở T057/US4) */
+  game_init(&s_game, seed);     /* T061: boot dừng ở MENU (FR-014), KHÔNG vào PLAYING ngay */
   s_snapshot = s_game;          /* khung khởi tạo (chưa có task nào chạy) */
 
   s_input_th  = osThreadNew(InputTask,  NULL, &s_input_attr);

@@ -271,14 +271,16 @@ int main(void) {
     assert(g.mode == ST_PLAYING);
   }
 
-  /* ---- M3: game_input_ui tối thiểu — GAME_OVER + nút chính → chơi lại ---- */
+  /* ---- US4: GAME_OVER + nút → MENU (chơi lại = về MENU rồi Start, FR-017) ---- */
   {
     GameState g;
     game_init(&g, 314u);
     game_start(&g);
     g.mode = ST_GAME_OVER; g.score = 123u;
     game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_UP });
-    assert(g.mode == ST_PLAYING);
+    assert(g.mode == ST_MENU);                          /* về MENU trước */
+    game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_UP });
+    assert(g.mode == ST_PLAYING);                       /* Start từ MENU */
     assert(g.score == 0u && g.worm.len == LEN_START);   /* reset ván mới */
   }
 
@@ -363,6 +365,8 @@ int main(void) {
     assert(g.mode == ST_WIN);
     assert(g.leaves_eaten == 14);
 
+    game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_UP });
+    assert(g.mode == ST_MENU);                /* WIN → MENU (chơi lại) */
     game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_UP });
     assert(g.mode == ST_PLAYING);
     assert(g.level_idx == 0 && g.score == 0);
@@ -564,8 +568,65 @@ int main(void) {
     assert(nh.c == 0 && nh.r == 6);              /* wrap sang cạnh trái cùng hàng */
   }
 
+  /* ================= US4 / M7 — MENU / PAUSE / chơi lại (T056) ================= */
+
+  /* ---- T056a: MENU + SELECT → PLAYING (Start) ---- */
+  {
+    GameState g;
+    game_init(&g, 0x4040u);
+    assert(g.mode == ST_MENU);                   /* game_init dừng ở MENU (FR-014) */
+    game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_UP });
+    assert(g.mode == ST_PLAYING);
+    assert(g.score == 0 && g.level_idx == 0 && g.worm.len == LEN_START);
+    assert(g.leaf_normal.type == LEAF_NORMAL);   /* lá đầu màn đã sinh */
+  }
+
+  /* ---- T056b: MENU nav 3 mục (START/ENDLESS/THEME), clamp 2 đầu; SELECT mục khoá = no-op ---- */
+  {
+    GameState g;
+    game_init(&g, 0x4041u);
+    assert(g.menu_sel == 0);
+    game_input_ui(&g, (InputEvent){ IN_DIR, DIR_DOWN });   /* → ENDLESS */
+    assert(g.menu_sel == 1);
+    game_input_ui(&g, (InputEvent){ IN_DIR, DIR_DOWN });   /* → THEME */
+    assert(g.menu_sel == 2);
+    game_input_ui(&g, (InputEvent){ IN_DIR, DIR_DOWN });   /* clamp ở cuối */
+    assert(g.menu_sel == 2);
+    /* SELECT trên mục "SOON" (THEME) → không vào game, vẫn ở MENU. */
+    game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_UP });
+    assert(g.mode == ST_MENU);
+    /* Lên lại START rồi SELECT → vào PLAYING. */
+    game_input_ui(&g, (InputEvent){ IN_DIR, DIR_UP });
+    game_input_ui(&g, (InputEvent){ IN_DIR, DIR_UP });
+    assert(g.menu_sel == 0);
+    game_input_ui(&g, (InputEvent){ IN_DIR, DIR_UP });     /* clamp ở đầu */
+    assert(g.menu_sel == 0);
+    game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_UP });
+    assert(g.mode == ST_PLAYING);
+  }
+
+  /* ---- T056c: pause toggle — PLAYING + SELECT → PAUSED (dừng game); + SELECT → PLAYING ---- */
+  {
+    GameState g;
+    game_init(&g, 0x4042u);
+    game_start(&g);
+    assert(g.mode == ST_PLAYING);
+    Cell h0 = worm_seg(&g, 0);
+    GameEvents e = game_step(&g, (InputEvent){ IN_SELECT, DIR_RIGHT }, g.step_ms);
+    assert(g.mode == ST_PAUSED);
+    assert(!(e & EV_MOVED));                      /* không dời sâu khi bấm pause */
+    Cell h1 = worm_seg(&g, 0);
+    assert(h1.c == h0.c && h1.r == h0.r);         /* sâu đứng yên */
+    /* Trong PAUSED, game_step là no-op (dừng cập nhật game). */
+    e = game_step(&g, (InputEvent){ IN_NONE, DIR_RIGHT }, g.step_ms);
+    assert(e == 0u && g.mode == ST_PAUSED);
+    /* Nút chính khi PAUSED → resume. */
+    game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_RIGHT });
+    assert(g.mode == ST_PLAYING);
+  }
+
   printf("test_game: all assertions passed (T019 init/start + T028-T031 core + "
-         "T040 obstacles/levels + T047-T048 leaves/power-ups); sizeof(GameState)=%lu\n",
-         (unsigned long)sizeof(GameState));
+         "T040 obstacles/levels + T047-T048 leaves/power-ups + T056 menu/pause); "
+         "sizeof(GameState)=%lu\n", (unsigned long)sizeof(GameState));
   return 0;
 }
