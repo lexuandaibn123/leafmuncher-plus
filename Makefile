@@ -116,6 +116,7 @@ Core/Src/input.c \
 Core/Src/game.c \
 Core/Src/levels.c \
 Core/Src/render.c \
+Core/Src/theme.c \
 Core/Src/apptasks.c
 
 # ASM sources

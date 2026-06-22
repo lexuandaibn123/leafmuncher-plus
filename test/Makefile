@@ -9,9 +9,13 @@ CORE    = ../Core/Src
 
 # Mỗi binary = 1 file test + các logic source THUẦN cần thiết.
 #   (thêm test_levels.c, test_game.c… link game.c/levels.c ở các phase sau)
-all: test_game test_levels test_rng
+all: test_game test_levels test_rng test_theme
 
 test_game: test_game.c $(CORE)/game.c $(CORE)/rng.c $(CORE)/levels.c
+	$(CC) $(CFLAGS) $^ -o $@
+	./$@
+
+test_theme: test_theme.c $(CORE)/theme.c
 	$(CC) $(CFLAGS) $^ -o $@
 	./$@
 
@@ -24,6 +28,6 @@ test_rng: test_rng.c $(CORE)/rng.c
 	./$@
 
 clean:
-	rm -f test_game test_game.exe test_levels test_levels.exe test_rng test_rng.exe
+	rm -f test_game test_game.exe test_levels test_levels.exe test_rng test_rng.exe test_theme test_theme.exe
 
-.PHONY: all clean test_game test_levels test_rng
+.PHONY: all clean test_game test_levels test_rng test_theme

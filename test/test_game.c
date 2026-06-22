@@ -673,8 +673,28 @@ int main(void) {
     assert(g.step_ms == STEP_MS_MIN);          /* không xuống dưới sàn */
   }
 
+  /* ---- T075: MENU mục THEME (menu_sel=2) + SELECT → cuộn theme_id, KHÔNG vào game ---- */
+  {
+    GameState g;
+    game_init(&g, 0x7E3u);
+    assert(g.theme_id == THEME_FOREST);          /* mặc định */
+    g.menu_sel = 2;                              /* trỏ mục THEME */
+    game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_UP });
+    assert(g.mode == ST_MENU);                   /* vẫn ở MENU (không start) */
+    assert(g.theme_id == THEME_DESERT);          /* cuộn 1 nấc */
+    game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_UP });
+    assert(g.theme_id == THEME_FOREST);          /* cuộn vòng lại */
+    /* theme_id giữ qua game_start (cosmetic, không bị reset). */
+    g.menu_sel = 2;
+    game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_UP });   /* → DESERT */
+    g.menu_sel = 0;
+    game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_UP });   /* START */
+    assert(g.mode == ST_PLAYING);
+    assert(g.theme_id == THEME_DESERT);          /* chơi vẫn giữ theme đã chọn */
+  }
+
   printf("test_game: all assertions passed (T019 init/start + T028-T031 core + "
          "T040 obstacles/levels + T047-T048 leaves/power-ups + T056 menu/pause + "
-         "T069 endless); sizeof(GameState)=%lu\n", (unsigned long)sizeof(GameState));
+         "T069 endless + T075 theme); sizeof(GameState)=%lu\n", (unsigned long)sizeof(GameState));
   return 0;
 }

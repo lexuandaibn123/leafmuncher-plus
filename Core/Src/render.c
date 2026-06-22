@@ -1,6 +1,7 @@
 #include "render.h"
 #include "gfx.h"
 #include "levels.h"   /* level_get → vẽ chướng ngại màn (T045) */
+#include "theme.h"    /* theme_get → màu theo chủ đề (T073/US6) */
 
 /* render — ánh xạ GameState → lệnh vẽ gfx (chỉ gọi gfx_*, KHÔNG chạm HAL — NT IV/V).
  * T024 (M2): vẽ HUD + sân + sâu, dispatch theo `mode`. M2 vẽ lại toàn khung mỗi tick
@@ -37,7 +38,8 @@ static int put_u32(char *dst, uint32_t v)
 
 static void draw_hud(const GameState *gs)
 {
-  uint16_t bg = gfx_rgb565(20, 20, 35);
+  const Theme *th = theme_get(gs->theme_id);
+  uint16_t bg = th->hud_bg;
   gfx_fill_rect(0, 0, SCREEN_W, HUD_H, bg);
 
   char line[28];
@@ -54,7 +56,7 @@ static void draw_hud(const GameState *gs)
     p += put_u32(line + p, (uint32_t)(gs->level_idx + 1));
   }
   line[p] = 0;
-  gfx_text(6, 8, line, gfx_rgb565(235, 235, 235), bg, 1);
+  gfx_text(6, 8, line, th->text, bg, 1);
 
   /* T054: power-up đang hiệu lực — chữ + giây còn lại, căn phải HUD. */
   static const char PU_CH[PU_KINDS] = { 'S', 'W', 'G', 'P' };  /* Speed/sloW/Ghost/Phase */
@@ -95,47 +97,48 @@ static uint16_t pu_color(PowerType t)
 
 static void draw_playing(const GameState *gs)
 {
-  /* Nền sân. */
-  gfx_fill_rect(0, HUD_H, SCREEN_W, SCREEN_H - HUD_H, gfx_rgb565(11, 26, 11));
+  const Theme *th = theme_get(gs->theme_id);   /* T073: màu theo theme hiện hành */
 
-  /* Chướng ngại của màn (T045) — màu xám đá. */
+  /* Nền sân. */
+  gfx_fill_rect(0, HUD_H, SCREEN_W, SCREEN_H - HUD_H, th->bg);
+
+  /* Chướng ngại của màn (T045/T073) — màu theo theme. */
   const Level *lv = level_get(gs->level_idx);
   if (lv != 0 && lv->obstacles != 0) {
-    uint16_t ob = gfx_rgb565(95, 95, 110);
     for (int r = 0; r < ROWS; r++)
       for (int c = 0; c < COLS; c++)
-        if (lv->obstacles[r][c]) cell_fill(c, r, ob);
+        if (lv->obstacles[r][c]) cell_fill(c, r, th->obstacle);
   }
 
   /* Lá (research §15). */
-  draw_leaf(&gs->leaf_normal, gfx_rgb565(46, 204, 64));
-  draw_leaf(&gs->leaf_poison, gfx_rgb565(177, 13, 201));
+  draw_leaf(&gs->leaf_normal, th->leaf_normal);
+  draw_leaf(&gs->leaf_poison, th->leaf_poison);
 
   /* T051: lá vàng nhấp nháy — ẩn ô ~500ms một nhịp khi đồng hồ life_ms còn dương. */
   if (gs->leaf_gold.type == LEAF_GOLD) {
     int32_t life = gs->leaf_gold.life_ms;
     int blink_on = (life < 0) || (((life / 500) & 1) == 0);   /* vô hạn → luôn hiện */
     if (blink_on) {
-      draw_leaf(&gs->leaf_gold, gfx_rgb565(255, 215, 0));
+      draw_leaf(&gs->leaf_gold, th->leaf_gold);
     }
   }
 
-  /* T054: power-up — màu theo loại (research §15). */
+  /* T054: power-up — màu theo loại (research §15; độc lập theme để giữ ý nghĩa). */
   if (gs->leaf_pu.type == LEAF_POWERUP) {
     draw_leaf(&gs->leaf_pu, pu_color(gs->leaf_pu.pu_type));
   }
 
-  /* Sâu: đầu cam đậm + chấm mắt, thân vàng-cam. */
+  /* Sâu: đầu + chấm mắt, thân (màu theo theme). */
   const Worm *w = &gs->worm;
   for (uint16_t k = 0; k < w->len; k++) {
     uint16_t i = (uint16_t)((w->head_idx + k) % WORM_CAP);
     Cell sg = w->body[i];
     if (k == 0) {
-      cell_fill(sg.c, sg.r, gfx_rgb565(230, 126, 0));
+      cell_fill(sg.c, sg.r, th->worm_head);
       gfx_fill_rect(sg.c * CELL + CELL / 2, HUD_H + sg.r * CELL + CELL / 3,
                     3, 3, gfx_rgb565(10, 10, 10));   /* mắt */
     } else {
-      cell_fill(sg.c, sg.r, gfx_rgb565(255, 180, 0));
+      cell_fill(sg.c, sg.r, th->worm_body);
     }
   }
 }
@@ -224,7 +227,16 @@ static void draw_menu(const GameState *gs)
 
   draw_menu_item(SCREEN_W / 2, 90,  176, 32, "START",   5, gs->menu_sel == 0, 0);
   draw_menu_item(SCREEN_W / 2, 128, 176, 32, "ENDLESS", 7, gs->menu_sel == 1, 0);  /* US5: chạy được */
-  draw_menu_item(SCREEN_W / 2, 166, 176, 32, "THEME",   5, gs->menu_sel == 2, 1);  /* US6: SOON */
+
+  /* US6: mục THEME hiện tên theme hiện hành; SELECT cuộn vòng (FOREST/DESERT). */
+  char tlabel[16];
+  int tn = 0;
+  const char *tp = "THEME:";
+  while (*tp) tlabel[tn++] = *tp++;
+  const char *nm = theme_get(gs->theme_id)->name;
+  while (*nm && tn < 15) tlabel[tn++] = *nm++;
+  tlabel[tn] = 0;
+  draw_menu_item(SCREEN_W / 2, 166, 176, 32, tlabel, tn, gs->menu_sel == 2, 0);
 
   gfx_text((SCREEN_W - 19 * 8) / 2, 210, "AXIS: MOVE  BTN: OK", gfx_rgb565(90, 92, 112), bg, 1);
 }

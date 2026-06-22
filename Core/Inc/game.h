@@ -109,6 +109,7 @@ typedef struct {
   uint32_t  score;                   /* điểm tích luỹ (clamp >= 0) */
   uint16_t  step_ms;                 /* nhịp tick CƠ BẢN của màn (hệ số power-up áp ở game_step_ms) */
   uint8_t   menu_sel;                /* lựa chọn đang sáng ở MENU */
+  uint8_t   theme_id;                /* ThemeId hiển thị (COSMETIC — game_step bỏ qua; chỉ render đọc) */
   uint32_t  rng;                     /* state PRNG (xorshift32) */
 } GameState;
 

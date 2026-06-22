@@ -464,8 +464,9 @@ void game_input_ui(GameState *gs, InputEvent in)
         } else if (gs->menu_sel == MENU_ENDLESS) { /* chơi Vô tận (US5) */
           gs->play_mode = MODE_ENDLESS;
           game_start(gs);
+        } else if (gs->menu_sel == MENU_THEME) {   /* US6: cuộn theme (cosmetic), ở lại MENU */
+          gs->theme_id = (uint8_t)((gs->theme_id + 1u) % THEME_COUNT);
         }
-        /* MENU_THEME ("SOON" — US6) = no-op */
       }
       break;
     case ST_PAUSED:

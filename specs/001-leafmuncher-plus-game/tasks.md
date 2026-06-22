@@ -208,12 +208,12 @@ còn nguyên.
 
 ### Implementation for User Story 5/6
 
-- [ ] T070 [P] [US6] Module `theme`: bảng `Theme` `const` cho `THEME_FOREST`/`THEME_DESERT` (bảng màu + sprite chướng ngại 16×16) + `theme_get`/`theme_count`/`theme_next` trong `Core/Src/theme.c` + `Core/Inc/theme.h` (hợp đồng [contracts/theme.md](contracts/theme.md))
+- [x] T070 [P] [US6] Module `theme`: bảng `Theme` `const` FOREST/DESERT (màu) + `theme_get`/`theme_count`/`theme_next` trong `Core/Src/theme.c` + `Core/Inc/theme.h` (hợp đồng [contracts/theme.md](contracts/theme.md)) — host test `test_theme.c`; `obstacle_sprite=NULL` (sprite 16×16 gộp T091); thêm `theme.c` vào `C_SOURCES`
 - [ ] T071 [P] [US5] Module `store`: `PersistData` + `store_init`/`store_get`/`store_set_*`/`store_commit`; ghi **1 sector Flash riêng** (erase+program) qua `HAL_FLASH_*`, magic/version/crc, fallback mặc định khi trống/hỏng trong `Core/Src/store.c` + `Core/Inc/store.h` (hợp đồng [contracts/store.md](contracts/store.md))
 - [x] T072 [US5] `play_mode` (set trước `game_start`); nhánh **ENDLESS** trong `game_step`: `grid_rebuild` không nạp chướng ngại, không `target`/LEVEL_COMPLETE/WIN, `step_ms` giảm `ENDLESS_STEP_DEC`/`ENDLESS_RAMP_EVERY` lá (clamp `STEP_MS_MIN`), `roll_specials` mở khoá lá đặc biệt + power-up từ đầu; chế độ Màn giữ nguyên trong `Core/Src/game.c` — MENU mục ENDLESS (1) đặt `MODE_ENDLESS` rồi `game_start`
-- [ ] T073 [US6] `render` đọc theme hiện hành: vẽ nền/màu/sprite chướng ngại theo `Theme` (thay màu hardcode); chữ HUD/đối tượng dùng bảng màu theme trong `Core/Src/render.c` (phụ thuộc T036, T070)
+- [x] T073 [US6] `render` đọc `theme_get(gs->theme_id)`: nền sân/HUD/chữ/sâu/lá/chướng ngại theo `Theme` (thay màu hardcode) trong `Core/Src/render.c` — power-up giữ màu theo loại (semantic); menu/banner giữ palette riêng
 - [~] T074 [US5] Render HUD chế độ Vô tận: nhãn "ENDLESS" thay "LV n" trong `Core/Src/render.c` ✓; **điểm cao (ván + best) chờ `store` (T076)**
-- [~] T075 [US5/US6] MENU đa mục: chọn **chế độ** START=Màn / ENDLESS=Vô tận ✓ (`Core/Src/game.c`); **đổi theme** (`theme_next`) chờ module `theme` (US6/T070)
+- [x] T075 [US5/US6] MENU đa mục: START=Màn / ENDLESS=Vô tận / THEME=cuộn `theme_id` (FOREST↔DESERT), hiện tên theme; trong `Core/Src/game.c` + render — host test T075
 - [ ] T076 [US5/US6] Tích hợp `store` trong `Core/Src/apptasks.c`/`freertos.c` USER CODE: `store_init` lúc boot → nạp `theme_id` cho render; khi đổi theme rời menu → `store_set_theme`+`store_commit`; ở GAME_OVER Vô tận nếu `score` > `endless_high` → `store_set_endless_high`+`store_commit` (phụ thuộc T070, T071, T075)
 - [ ] T077 Thêm `theme.c`, `store.c` vào `C_SOURCES` (Makefile) + **dành riêng sector 12 Bank 2 (`0x08100000`, 16 KB) cho store** trong `STM32F429XX_FLASH.ld` (MEMORY riêng / `NOLOAD`, tránh trùng vùng code Bank 1); ghi chú thêm lại sau mỗi CubeMX Generate; `./build.sh` 0 error
 - [ ] T078 Demo M8: menu chọn mode + theme → chơi Vô tận lập điểm cao → tắt/bật nguồn giữ điểm cao & theme; `make -C test` xanh + on-board (Acceptance US5/US6, FR-022..027)
