@@ -60,7 +60,7 @@ demo mà không đổi kiến trúc.
 
 - **Decision**: sau mỗi lần ăn lá thường, rút ngẫu nhiên các sự kiện phụ (tối đa 1 lá đặc biệt + 0–1
   power-up tồn tại cùng lúc):
-  - **Lá vàng**: 15% mỗi lần ăn nếu chưa có lá vàng trên sân; tuổi thọ **8000 ms**, hết giờ tự biến mất.
+  - **Lá vàng**: 40% mỗi lần ăn nếu chưa có lá vàng trên sân *(tunable; tăng từ 15% cho dễ thấy lúc demo)*; tuổi thọ **8000 ms**, hết giờ tự biến mất.
   - **Lá độc**: từ **level ≥ 2**, 20% mỗi lần ăn nếu chưa có lá độc; **tồn tại đến khi bị ăn** (người
     chơi tránh được).
   - **Power-up**: từ **level ≥ 3**, 12% mỗi lần ăn nếu chưa có power-up; loại chọn ngẫu nhiên đều; tuổi
@@ -187,6 +187,15 @@ demo mà không đổi kiến trúc.
   là quyết định **không khoá kiến trúc** — đổi sang sprite/tiếng-Việt sau được mà không sửa module.
 - **Alternatives**: sprite 16×16 / chữ tiếng Việt có dấu — để dành sau M3 nếu còn thời gian (người dùng
   đã tạm hoãn chọn; dùng mặc định này để không chặn plan). Chi tiết ở [docs/ui/ui-design.md] (tạo ở M1).
+- **YÊU CẦU CHỐT (visual cuối, người dùng yêu cầu 2026-06-22)**: ô tô-màu-phẳng ở M3–M6 chỉ là **tạm**.
+  Khi hoàn tất spec, hiển thị **bắt buộc** đạt:
+  - **Lá có chi tiết rõ ràng** — không còn là ô vuông đặc: lá thường/vàng có dáng lá (cuống + gân), lá độc
+    nhận diện được (vd bọt/đốm), power-up là token có ký hiệu loại. 4 loại lá phân biệt bằng *hình* lẫn màu.
+  - **Thân sâu phân khúc rõ** — từng đốt tách bạch (khe/viền giữa các đốt), đầu có hướng (mắt theo hướng),
+    không còn dải khối liền mạch khó đọc.
+  - **Cách làm** (chọn ở Polish/M8): (a) ghép nhiều `gfx_fill_rect`/ô (bo góc + khe đốt + dáng lá) —
+    nhẹ, không thêm dữ liệu; hoặc (b) sprite 16×16 `gfx_blit` (gộp cùng module `theme` T070, đẹp hơn,
+    tốn flash). Nghiệm thu bằng mắt ở **T091**.
 
 ## 16. Kiểm thử host (NT II / SC-006)
 
@@ -268,7 +277,7 @@ LEN_START=3  LEN_MIN=3  DIR_START=RIGHT
 STEP_MS[1..5]={180,155,130,110,95}  STEP_MS_MIN=70
 SPEED_FACTOR=0.6  SLOW_FACTOR=1.7  PU_EFFECT_MS=6000
 SCORE_LEAF=10  SCORE_GOLD=50  POISON_SHRINK=2  POISON_PENALTY=20
-GOLD_CHANCE=15%  GOLD_LIFE_MS=8000
+GOLD_CHANCE=40%  GOLD_LIFE_MS=8000
 POISON_CHANCE=20% (lvl>=2)  PU_CHANCE=12% (lvl>=3)  PU_LIFE_MS=10000
 LEVELS=5  TARGET[1..5]={6,8,10,12,14}
 DEADZONE=±500  HYSTERESIS=1.3x  INPUT_HZ=50  DEBOUNCE_MS=30
