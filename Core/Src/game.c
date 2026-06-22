@@ -3,6 +3,11 @@
 #include "levels.h"
 #include <string.h>
 
+/* US4: MENU có 3 mục điều hướng được: 0=START (chạy), 1=ENDLESS, 2=THEME ("SOON" — mock,
+ * chọn được nhưng chưa có chức năng; nối ở US5/US6). */
+#define MENU_ITEMS    3
+#define MENU_START    0
+
 /* game — logic thuần (Nguyên tắc II: KHÔNG gọi HAL/CMSIS/FreeRTOS).
  * T019: khởi tạo phiên + truy vấn đọc-chỉ. game_step/game_input_ui ở US1+ (T032–T035, T057+).
  *
@@ -258,6 +263,11 @@ GameEvents game_step(GameState *gs, InputEvent in, uint16_t dt_ms)
   if (gs->mode != ST_PLAYING) {
     return 0u;
   }
+  /* T058: nút chính (IN_SELECT) khi đang chơi → PAUSED, KHÔNG dời sâu (FSM phân tách theo mode). */
+  if (in.kind == IN_SELECT) {
+    gs->mode = ST_PAUSED;
+    return 0u;
+  }
   Worm *w = &gs->worm;
   GameEvents ev = 0u;
 
@@ -414,23 +424,44 @@ GameEvents game_step(GameState *gs, InputEvent in, uint16_t dt_ms)
   return ev;
 }
 
-/* ===== game_input_ui — điều hướng ngoài ST_PLAYING =====
- * Nút chính (IN_SELECT) theo trạng thái:
- *   LEVEL_COMPLETE → lên màn kế (giữ score) (T044, FR-021)
- *   WIN / GAME_OVER → chơi lại từ màn 0
- * MENU/PAUSED đầy đủ ở US4 (T057). */
+/* ===== game_input_ui — điều hướng ngoài ST_PLAYING (US4: T057–T059) =====
+ *   MENU:           IN_DIR lên/xuống đổi menu_sel; IN_SELECT = Start (FR-015)
+ *   PAUSED:         IN_SELECT = resume (FR-016; menu 3 mục đầy đủ ở US7)
+ *   LEVEL_COMPLETE: IN_SELECT = lên màn kế (giữ score) (T044, FR-021)
+ *   WIN/GAME_OVER:  IN_SELECT = chơi lại → về MENU rồi Start, điểm 0 (FR-017)
+ * (Re-seed RNG tại sườn nhấn Start do lớp tasks lo — T061.) */
 void game_input_ui(GameState *gs, InputEvent in)
 {
-  if (in.kind != IN_SELECT) {
-    return;
-  }
   switch (gs->mode) {
+    case ST_MENU:
+      if (in.kind == IN_DIR) {
+        if (in.dir == DIR_UP && gs->menu_sel > 0u) {
+          gs->menu_sel--;
+        } else if (in.dir == DIR_DOWN && (uint8_t)(gs->menu_sel + 1u) < MENU_ITEMS) {
+          gs->menu_sel++;
+        }
+      } else if (in.kind == IN_SELECT) {
+        if (gs->menu_sel == MENU_START) {    /* chỉ START vào ván; ENDLESS/THEME ("SOON") = no-op */
+          game_start(gs);
+        }
+      }
+      break;
+    case ST_PAUSED:
+      if (in.kind == IN_SELECT) {
+        gs->mode = ST_PLAYING;               /* resume */
+      }
+      break;
     case ST_LEVEL_COMPLETE:
-      advance_level(gs);                     /* sang màn kế, nhanh hơn, giữ điểm */
+      if (in.kind == IN_SELECT) {
+        advance_level(gs);                   /* sang màn kế, nhanh hơn, giữ điểm */
+      }
       break;
     case ST_WIN:
     case ST_GAME_OVER:
-      game_start(gs);                        /* RNG giữ state → ván mới khác biệt */
+      if (in.kind == IN_SELECT) {
+        gs->mode = ST_MENU;                  /* chơi lại = về MENU (Start sẽ reset điểm 0) */
+        gs->menu_sel = 0u;
+      }
       break;
     default:
       break;

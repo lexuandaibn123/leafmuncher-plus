@@ -299,17 +299,24 @@ void gfx_blend_rect(int x, int y, int w, int h, uint16_t c, uint8_t a) {
   }
 }
 
-void gfx_text(int x, int y, const char *s, uint16_t fg, uint16_t bg) {
+/* Vẽ chuỗi font 8×16, phóng to nguyên lần `scale` (scale=1 = cỡ mặc định, hành vi T010).
+ * Mỗi pixel font → khối scale×scale; nền `bg` vẫn vẽ (đặc) như cũ. */
+void gfx_text(int x, int y, const char *s, uint16_t fg, uint16_t bg, int scale) {
   if (!s) return;
-  for (int cx = x; *s; s++, cx += FONT_W) {
+  if (scale < 1) scale = 1;
+  for (int cx = x; *s; s++, cx += FONT_W * scale) {
     unsigned char ch = (unsigned char)*s;
     if (ch >= 'a' && ch <= 'z') ch = (unsigned char)(ch - 'a' + 'A');  /* gộp về hoa */
     if (ch < 0x20u || ch > 0x7Fu) ch = 0x20u;                          /* ngoài bảng → trống */
     const uint8_t *glyph = FONT8X16[ch - 0x20u];
     for (int r = 0; r < FONT_H; r++) {
       uint8_t row = glyph[r];
-      for (int col = 0; col < FONT_W; col++)
-        fb_put_px(cx + col, y + r, (row & (0x80u >> col)) ? fg : bg);
+      for (int col = 0; col < FONT_W; col++) {
+        uint16_t c = (row & (0x80u >> col)) ? fg : bg;
+        for (int dy = 0; dy < scale; dy++)
+          for (int dx = 0; dx < scale; dx++)
+            fb_put_px(cx + col * scale + dx, y + r * scale + dy, c);
+      }
     }
   }
 }
