@@ -241,10 +241,15 @@ còn nguyên.
 - [ ] T088 [P] Cập nhật trạng thái mốc M1→M8 trong [AGENTS.md](../../AGENTS.md) §7
 - [ ] T089 Đối chiếu **9 peripheral** (GPIO, ADC+DMA, **Timer**, Interrupt, LTDC, FMC/SDRAM, DMA2D, **Flash**, FreeRTOS — constitution §2) đều nghiệm thu được trong [quickstart.md](quickstart.md); bổ sung mục thiếu
 - [ ] T090 Chạy trọn [quickstart.md](quickstart.md) end-to-end (M1→M8) làm nghiệm thu cuối
-- [ ] T091 [P] **Visual cuối — lá chi tiết + sâu phân khúc** (research §15 "YÊU CẦU CHỐT"): nâng cấp `render.c`
-  (ghép `gfx_fill_rect`/ô hoặc sprite `gfx_blit` gộp theme T070) để (1) 4 loại lá có *hình thù* rõ (dáng
-  lá + cuống/gân, lá độc có bọt/đốm, power-up token có ký hiệu) phân biệt bằng hình lẫn màu; (2) thân sâu
-  có khe/viền tách từng đốt + đầu có hướng. Nghiệm thu **bằng mắt** trên bo (SC-003: không nhấp nháy/xé hình)
+- [X] T091 [P] **Visual cuối — sprite item + sâu liền mạch** (research §15 "YÊU CẦU CHỐT") trong `Core/Src/render.c`:
+  sprite **indexed 16×16** (bitmap + bảng màu ký tự, vẽ run-length qua `draw_sprite`, pixel trong suốt) — nguồn
+  chuẩn & duyệt bằng mắt qua `tools/gen_sprites_preview.py` (PNG ở `docs/ui/sprites/`). (1) lá thường theo theme —
+  **rừng = lá cây** (phiến phình + gân giữa & gân phụ xương cá + cuống), **sa mạc = cỏ lăn khô** (búi nhánh đan hở);
+  lá vàng = đồng xu có lóa, lá độc = đầu lâu tím đối xứng, power-up = token bo góc + chữ S/W/G/P; (2) **chướng ngại =
+  khối đá vát 3D** suy sáng/tối từ màu theme (`shade565`) + nứt/sạn — thay tô màu phẳng; (3) sâu **liền mạch**: mỗi đốt
+  nối ô kề khi rẽ (`conn_bit`), bo góc, highlight trên/bóng dưới, đầu 2 mắt theo hướng. Nguyên tắc pixel-art (sáng
+  trên-trái, viền sel-out, ≤6 màu/sprite) đã research. Nghiệm thu **bằng mắt** trên bo ✓ (SC-003: không nhấp nháy/xé hình).
+  **Còn ngỏ:** `obstacle_sprite` vẫn NULL (chưa dùng ảnh sprite rời cho chướng ngại — vẽ vát thủ tục là đủ đẹp)
 
 ---
 

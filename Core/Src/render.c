@@ -6,14 +6,21 @@
 /* render — ánh xạ GameState → lệnh vẽ gfx (chỉ gọi gfx_*, KHÔNG chạm HAL — NT IV/V).
  * T024 (M2): vẽ HUD + sân + sâu, dispatch theo `mode`. M2 vẽ lại toàn khung mỗi tick
  * (chấp nhận được ở tốc snake, research §14); dirty-rect tối ưu ở T036+.
- * Bảng màu: contracts/render-gfx.md (research §15).
- * ⚠️ Lá/sâu hiện TÔ-MÀU-PHẲNG là TẠM — visual cuối (lá có dáng+gân, sâu phân khúc rõ) ở T091
- *    (research §15 "YÊU CẦU CHỐT"): ghép fill_rect/ô hoặc sprite gfx_blit (gộp theme T070). */
+ * Bảng màu: theo `theme` (T073). T091: lá có hình thù (rừng=lá cây, sa mạc=cỏ lăn; vàng=đồng xu,
+ * độc=đầu lâu, power-up=token chữ) + sâu phân khúc (đốt thụt có khe, đầu có mắt theo hướng) — ghép
+ * fill_rect qua helper `px`. (Sprite chướng ngại theo theme còn để ngỏ — obstacle_sprite=NULL.) */
 
 /* Ô lưới (c,r) → pixel landscape: sân nằm DƯỚI dải HUD cao HUD_H. */
 static void cell_fill(int c, int r, uint16_t color)
 {
   gfx_fill_rect(c * CELL, HUD_H + r * CELL, CELL, CELL, color);
+}
+
+/* T091: vẽ 1 khối con TRONG ô (c,r) tại offset (dx,dy), kích thước w×h — để dựng hình thù
+ * (lá/sâu phân khúc) bằng vài fill_rect thay vì tô đặc cả ô. */
+static void px(int c, int r, int dx, int dy, int w, int h, uint16_t color)
+{
+  gfx_fill_rect(c * CELL + dx, HUD_H + r * CELL + dy, w, h, color);
 }
 
 /* Font 8×16: "mực" glyph nằm ở dòng 1..10 (5 dòng trống đáy) → căn dọc theo mực, KHÔNG theo ô,
@@ -76,13 +83,6 @@ static void draw_hud(const GameState *gs)
   }
 }
 
-static void draw_leaf(const Leaf *lf, uint16_t color)
-{
-  if (lf->type != LEAF_NONE) {
-    cell_fill(lf->pos.c, lf->pos.r, color);
-  }
-}
-
 /* T054: màu power-up theo loại (research §15): SPEED cyan / SLOW lam / GHOST trắng / PHASE cam-gạch. */
 static uint16_t pu_color(PowerType t)
 {
@@ -95,51 +95,223 @@ static uint16_t pu_color(PowerType t)
   }
 }
 
+/* ===== T091: sprite item 16×16 (indexed; vẽ run-length) + đá vát + sâu cải tiến =====
+ * Bitmap & bảng màu là nguồn chuẩn từ tools/gen_sprites_preview.py (đã duyệt PNG):
+ * sáng trên-trái, viền sel-out, ≤6 màu/sprite (nguyên tắc pixel-art 16×16). '.' = trong suốt. */
+
+/* Bảng màu pixel-sprite: mỗi ký tự → 1 màu (các ký tự không trùng nhau giữa các sprite). */
+static uint16_t spr_color(char k)
+{
+  switch (k) {
+    case 'o': return gfx_rgb565(18, 92, 34);     /* viền lá đậm   */
+    case 'G': return gfx_rgb565(46, 204, 64);    /* lá xanh nền   */
+    case 'L': return gfx_rgb565(130, 240, 130);  /* lá mặt sáng   */
+    case 'V': return gfx_rgb565(28, 134, 52);    /* gân lá (đậm)  */
+    case 'm': return gfx_rgb565(96, 64, 22);     /* cuống nâu     */
+    case 'T': return gfx_rgb565(196, 162, 96);   /* cát           */
+    case 'H': return gfx_rgb565(228, 202, 150);  /* cát sáng      */
+    case 'D': return gfx_rgb565(118, 84, 40);    /* nhánh khô     */
+    case 'y': return gfx_rgb565(190, 150, 0);    /* viền vàng     */
+    case 'Y': return gfx_rgb565(255, 215, 0);    /* vàng          */
+    case 'W': return gfx_rgb565(255, 246, 178);  /* lóa sáng      */
+    case 'p': return gfx_rgb565(92, 12, 112);    /* tím đậm       */
+    case 'P': return gfx_rgb565(206, 138, 226);  /* xương tím     */
+    default:  return 0;
+  }
+}
+
+/* Vẽ 1 sprite 16×16 tại ô (c,r): gom pixel cùng màu trên mỗi hàng thành 1 fill_rect. */
+static void draw_sprite(int c, int r, const char *const rows[16])
+{
+  for (int y = 0; y < 16; y++) {
+    const char *row = rows[y];
+    int x = 0;
+    while (x < 16) {
+      char k = row[x];
+      if (k == '.') { x++; continue; }
+      int run = 1;
+      while (x + run < 16 && row[x + run] == k) run++;
+      px(c, r, x, y, run, 1, spr_color(k));
+      x += run;
+    }
+  }
+}
+
+static const char *const SPR_LEAF[16] = {
+  "................", "................", ".......oooooo...", ".....ooVLVLGo...",
+  "....oLLVLVGVo...", "...oLVLLLVVGo...", "...oLVLVGVVVo...", "..oLLVLVVGGGo...",
+  "..oLLLVVVVGo....", "..oLLGVVGGGo....", "..oLGVGGVVo.....", "..oGVGGGoo......",
+  "..omoooo........", "..m.............", ".m..............", "................",
+};
+static const char *const SPR_TUMBLE[16] = {
+  ".......D........", ".....DDTDD......", "...DTDD.DDTD....", "....D..D..D.....",
+  "..HD.HDTTD.DD...", ".TDD.DD.DD.DDT..", ".D..D..D..D..D..", "DTDT.HT.DT.DTTD.",
+  "..DT.DTTTT..T...", ".D..D..D..D..D..", "..TD.DD.D..DT...", "..D..DD..D..D...",
+  "....D..TT.D.....", ".....T.TDT......", "................", "................",
+};
+static const char *const SPR_GOLD[16] = {
+  "................", "......yyy.......", "....yyYYYyy.....", "...yWWWYYYYy....",
+  "..yWWWWYYYYYy...", "..yWWWWWYYYYy...", ".yYWWWWYYYYYYy..", ".yYYYWYYYYYYYy..",
+  ".yYYYYYYYYYYYy..", "..yYYYYYYYYYy...", "..yYYYYYYYYYy...", "...yYYYYYYYy....",
+  "....yyYYYyy.....", "......yyy.......", "................", "................",
+};
+static const char *const SPR_POISON[16] = {
+  "................", ".....pppppp.....", "....pPPPPPPp....", "...pPPPPPPPPp...",
+  "...pPPPPPPPPp...", "...pPppPPppPp...", "...pPppPPppPp...", "...pPPPPPPPPp...",
+  "....pPPppPPp....", ".....pPPPPp.....", ".....pPppPp.....", ".....pPppPp.....",
+  "......pppp......", "................", "................", "................",
+};
+
+/* Đổi độ sáng màu RGB565 theo tỉ lệ num/den (để dựng vát sáng/tối từ màu theme). */
+static uint16_t shade565(uint16_t col, int num, int den)
+{
+  int r = (col >> 11) & 0x1F, g = (col >> 5) & 0x3F, b = col & 0x1F;
+  r = r * num / den; g = g * num / den; b = b * num / den;
+  if (r > 31) r = 31;
+  if (g > 63) g = 63;
+  if (b > 31) b = 31;
+  return (uint16_t)((r << 11) | (g << 5) | b);
+}
+
+/* Chướng ngại: khối đá VÁT 3D suy từ màu theme — mép trên-trái sáng, dưới-phải tối,
+ * thêm vết nứt chéo + sạn (khớp tools/gen_sprites_preview.py). */
+static void draw_obstacle(int c, int r, uint16_t base)
+{
+  static const uint8_t crack[6][2] = { {10,3},{10,4},{9,5},{9,6},{8,7},{8,8} };
+  static const uint8_t grit[4][2]  = { {4,5},{6,11},{12,9},{5,9} };
+  uint16_t hi = shade565(base, 135, 100), lo = shade565(base, 60, 100), dk = shade565(base, 45, 100);
+  cell_fill(c, r, base);
+  px(c, r, 0, 0, 16, 2, hi); px(c, r, 0, 0, 2, 16, hi);    /* mép trên + trái sáng */
+  px(c, r, 0, 14, 16, 2, lo); px(c, r, 14, 0, 2, 16, lo);  /* mép dưới + phải tối  */
+  for (int i = 0; i < 6; i++) px(c, r, crack[i][0], crack[i][1], 1, 1, dk);
+  for (int i = 0; i < 4; i++) px(c, r, grit[i][0], grit[i][1], 1, 1, dk);
+}
+
+/* Power-up: token bo góc theo màu loại + highlight/bóng + chữ S/W/G/P giữa ô. */
+static char pu_letter(PowerType t)
+{
+  switch (t) {
+    case PU_SPEED: return 'S';
+    case PU_SLOW:  return 'W';
+    case PU_GHOST: return 'G';
+    case PU_PHASE: return 'P';
+    default:       return '?';
+  }
+}
+static void draw_powerup_token(int c, int r, PowerType t, uint16_t bg)
+{
+  uint16_t col = pu_color(t);
+  uint16_t hi = shade565(col, 130, 100), lo = shade565(col, 65, 100);
+  px(c, r, 1, 1, 14, 14, col);                            /* thân token */
+  px(c, r, 1, 1, 1, 1, bg); px(c, r, 14, 1, 1, 1, bg);    /* bo 4 góc */
+  px(c, r, 1, 14, 1, 1, bg); px(c, r, 14, 14, 1, 1, bg);
+  px(c, r, 3, 2, 9, 2, hi); px(c, r, 3, 12, 9, 2, lo);    /* highlight/bóng */
+  char s[2] = { pu_letter(t), 0 };
+  gfx_text(c * CELL + 4, HUD_H + r * CELL, s, gfx_rgb565(20, 20, 30), col, 1);
+}
+
+/* Cờ cầu nối đốt sâu sang ô kề (đọc liền mạch khi rẽ). */
+#define CONN_R 1u
+#define CONN_L 2u
+#define CONN_U 4u
+#define CONN_D 8u
+
+/* Một đốt/đầu sâu: thân thụt bo góc + cầu nối theo `conn` + highlight trên/bóng dưới.
+ * `is_head` thêm 2 mắt (trắng + đồng tử) quay theo `dir`. `bg` dùng để bo góc. */
+static void draw_worm_body(int c, int r, uint16_t col, uint16_t bg, unsigned conn, int is_head, Dir dir)
+{
+  uint16_t hi = shade565(col, 130, 100), lo = shade565(col, 62, 100);
+  px(c, r, 1, 1, 14, 14, col);                            /* thân thụt 1px */
+  px(c, r, 1, 1, 1, 1, bg); px(c, r, 14, 1, 1, 1, bg);    /* bo 4 góc */
+  px(c, r, 1, 14, 1, 1, bg); px(c, r, 14, 14, 1, 1, bg);
+  if (conn & CONN_R) px(c, r, 14, 4, 2, 8, col);          /* cầu nối 4 hướng */
+  if (conn & CONN_L) px(c, r, 0, 4, 2, 8, col);
+  if (conn & CONN_U) px(c, r, 4, 0, 8, 2, col);
+  if (conn & CONN_D) px(c, r, 4, 14, 8, 2, col);
+  px(c, r, 3, 2, 9, 2, hi);                               /* highlight trên */
+  px(c, r, 3, 12, 9, 2, lo);                              /* bóng dưới */
+  if (is_head) {
+    uint16_t white = gfx_rgb565(245, 245, 245), pup = gfx_rgb565(15, 15, 15);
+    int e1x, e1y, e2x, e2y;
+    switch (dir) {
+      case DIR_RIGHT: e1x = 10; e1y = 3;  e2x = 10; e2y = 10; break;
+      case DIR_LEFT:  e1x = 3;  e1y = 3;  e2x = 3;  e2y = 10; break;
+      case DIR_UP:    e1x = 3;  e1y = 3;  e2x = 10; e2y = 3;  break;
+      default:        e1x = 3;  e1y = 10; e2x = 10; e2y = 10; break;   /* DIR_DOWN */
+    }
+    px(c, r, e1x, e1y, 3, 3, white); px(c, r, e2x, e2y, 3, 3, white);
+    px(c, r, e1x + 1, e1y + 1, 1, 1, pup); px(c, r, e2x + 1, e2y + 1, 1, 1, pup);
+  }
+}
+
+/* Δ(ô kề − ô này) → cờ hướng cầu nối (chỉ khi kề trực giao; PHASE wrap thì bỏ qua). */
+static unsigned conn_bit(int dc, int dr)
+{
+  if (dc == 1 && dr == 0) return CONN_R;
+  if (dc == -1 && dr == 0) return CONN_L;
+  if (dc == 0 && dr == -1) return CONN_U;
+  if (dc == 0 && dr == 1) return CONN_D;
+  return 0u;                                              /* không kề (wrap) → không nối */
+}
+
 static void draw_playing(const GameState *gs)
 {
   const Theme *th = theme_get(gs->theme_id);   /* T073: màu theo theme hiện hành */
+  int desert = (gs->theme_id == THEME_DESERT);
 
   /* Nền sân. */
   gfx_fill_rect(0, HUD_H, SCREEN_W, SCREEN_H - HUD_H, th->bg);
 
-  /* Chướng ngại của màn (T045/T073) — màu theo theme. */
+  /* Chướng ngại của màn (T045/T073) — đá vát 3D theo màu theme. */
   const Level *lv = level_get(gs->level_idx);
   if (lv != 0 && lv->obstacles != 0) {
     for (int r = 0; r < ROWS; r++)
       for (int c = 0; c < COLS; c++)
-        if (lv->obstacles[r][c]) cell_fill(c, r, th->obstacle);
+        if (lv->obstacles[r][c]) draw_obstacle(c, r, th->obstacle);
   }
 
-  /* Lá (research §15). */
-  draw_leaf(&gs->leaf_normal, th->leaf_normal);
-  draw_leaf(&gs->leaf_poison, th->leaf_poison);
+  /* T091: lá thường — sprite theo theme: rừng = lá cây (có gân), sa mạc = cỏ lăn khô. */
+  if (gs->leaf_normal.type != LEAF_NONE) {
+    int lc = gs->leaf_normal.pos.c, lr = gs->leaf_normal.pos.r;
+    draw_sprite(lc, lr, desert ? SPR_TUMBLE : SPR_LEAF);
+  }
 
-  /* T051: lá vàng nhấp nháy — ẩn ô ~500ms một nhịp khi đồng hồ life_ms còn dương. */
+  /* T091: lá độc — đầu lâu tím. */
+  if (gs->leaf_poison.type == LEAF_POISON) {
+    draw_sprite(gs->leaf_poison.pos.c, gs->leaf_poison.pos.r, SPR_POISON);
+  }
+
+  /* T051/T091: lá vàng — đồng xu, nhấp nháy ~500ms khi sắp hết hạn. */
   if (gs->leaf_gold.type == LEAF_GOLD) {
     int32_t life = gs->leaf_gold.life_ms;
     int blink_on = (life < 0) || (((life / 500) & 1) == 0);   /* vô hạn → luôn hiện */
     if (blink_on) {
-      draw_leaf(&gs->leaf_gold, th->leaf_gold);
+      draw_sprite(gs->leaf_gold.pos.c, gs->leaf_gold.pos.r, SPR_GOLD);
     }
   }
 
-  /* T054: power-up — màu theo loại (research §15; độc lập theme để giữ ý nghĩa). */
+  /* T054/T091: power-up — token chữ S/W/G/P theo loại. */
   if (gs->leaf_pu.type == LEAF_POWERUP) {
-    draw_leaf(&gs->leaf_pu, pu_color(gs->leaf_pu.pu_type));
+    draw_powerup_token(gs->leaf_pu.pos.c, gs->leaf_pu.pos.r, gs->leaf_pu.pu_type, th->bg);
   }
 
-  /* Sâu: đầu + chấm mắt, thân (màu theo theme). */
+  /* T091: sâu liền mạch — mỗi đốt nối sang ô kề (đầu + đuôi trong chuỗi), bo góc,
+   * highlight trên/bóng dưới; đầu có 2 mắt theo hướng. */
   const Worm *w = &gs->worm;
   for (uint16_t k = 0; k < w->len; k++) {
     uint16_t i = (uint16_t)((w->head_idx + k) % WORM_CAP);
     Cell sg = w->body[i];
-    if (k == 0) {
-      cell_fill(sg.c, sg.r, th->worm_head);
-      gfx_fill_rect(sg.c * CELL + CELL / 2, HUD_H + sg.r * CELL + CELL / 3,
-                    3, 3, gfx_rgb565(10, 10, 10));   /* mắt */
-    } else {
-      cell_fill(sg.c, sg.r, th->worm_body);
+    unsigned conn = 0u;
+    if (k > 0) {                                          /* nối tới đốt trước (về phía đầu) */
+      Cell pv = w->body[(w->head_idx + k - 1) % WORM_CAP];
+      conn |= conn_bit(pv.c - sg.c, pv.r - sg.r);
     }
+    if (k + 1 < w->len) {                                 /* nối tới đốt sau (về phía đuôi) */
+      Cell nx = w->body[(w->head_idx + k + 1) % WORM_CAP];
+      conn |= conn_bit(nx.c - sg.c, nx.r - sg.r);
+    }
+    if (k == 0) draw_worm_body(sg.c, sg.r, th->worm_head, th->bg, conn, 1, w->dir);
+    else        draw_worm_body(sg.c, sg.r, th->worm_body, th->bg, conn, 0, w->dir);
   }
 }
 
