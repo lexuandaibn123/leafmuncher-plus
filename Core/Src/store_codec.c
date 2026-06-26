@@ -40,3 +40,11 @@ void store_pd_defaults(PersistData *pd)
   pd->endless_high = 0u;
   pd->crc = store_crc32(pd, pd_payload_len());
 }
+
+/* Ô lưu ván (US7): cấu trúc nguyên vẹn = version khớp + crc khớp. Cờ `valid` (có ván hay không)
+ * xét riêng ở store_has_save. Flash trống (0xFF) → version=0xFFFF ≠ SAVE_VERSION → bỏ (FR-032). */
+bool store_sg_valid(const SavedGame *sg)
+{
+  if (sg->version != SAVE_VERSION) return false;
+  return sg->crc == store_crc32(sg, (uint32_t)(sizeof(SavedGame) - sizeof(sg->crc)));
+}

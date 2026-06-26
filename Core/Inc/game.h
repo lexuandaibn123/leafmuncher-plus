@@ -108,10 +108,22 @@ typedef struct {
   uint16_t  leaves_eaten;            /* lá thường đã ăn trong màn */
   uint32_t  score;                   /* điểm tích luỹ (clamp >= 0) */
   uint16_t  step_ms;                 /* nhịp tick CƠ BẢN của màn (hệ số power-up áp ở game_step_ms) */
-  uint8_t   menu_sel;                /* lựa chọn đang sáng ở MENU */
+  uint8_t   menu_sel;                /* lựa chọn đang sáng ở MENU/PAUSED */
   uint8_t   theme_id;                /* ThemeId hiển thị (COSMETIC — game_step bỏ qua; chỉ render đọc) */
   uint32_t  rng;                     /* state PRNG (xorshift32) */
+  /* US7 — cờ ô lưu (EXTERNAL: tasks set từ store, game/render chỉ ĐỌC để dựng MENU; game_step bỏ qua). */
+  uint8_t   has_save[2];             /* ô lưu khả dụng theo PlayMode (MODE_LEVEL/MODE_ENDLESS) */
+  uint8_t   save_request;            /* PAUSED "Lưu & Thoát" → tasks lưu Flash rồi về MENU (transient) */
+  uint8_t   load_request;            /* MENU "Tiếp tục" → tasks nạp ô lưu vào state (transient) */
+  uint8_t   from_save;               /* ván hiện tại khôi phục từ ô lưu? (tasks set; xóa ô lưu khi kết thúc) */
 } GameState;
+
+/* MENU động (US7): có thể chèn mục "Tiếp tục" theo ô lưu khả dụng. game.c & render.c cùng gọi
+ * game_menu_items để dựng DANH SÁCH MỤC y hệt nhau (tránh lệch chỉ số). */
+typedef enum {
+  MI_CONTINUE_LEVEL, MI_CONTINUE_ENDLESS, MI_START, MI_ENDLESS, MI_THEME
+} MenuItemId;
+#define MENU_MAX_ITEMS 5
 
 /* ===================== Sự kiện (contracts/game-core.md) ===================== */
 typedef uint16_t GameEvents;   /* bitmask trả về từ game_step */
@@ -131,6 +143,7 @@ void       game_init(GameState *gs, uint32_t seed);            /* về MENU, sâ
 void       game_start(GameState *gs);                          /* bắt đầu ván từ MENU */
 GameEvents game_step(GameState *gs, InputEvent in, uint16_t dt_ms); /* một bước logic */
 void       game_input_ui(GameState *gs, InputEvent in);        /* điều hướng MENU/PAUSED/GAME_OVER/WIN */
+int        game_menu_items(const GameState *gs, MenuItemId out[MENU_MAX_ITEMS]); /* dựng MENU động → số mục */
 LeafType   game_cell_content(const GameState *gs, Cell c);     /* nội dung ô (chỉ đọc) */
 uint16_t   game_step_ms(const GameState *gs);                  /* tick hiệu dụng hiện tại */
 
