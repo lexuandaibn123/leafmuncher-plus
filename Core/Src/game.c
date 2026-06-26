@@ -3,11 +3,8 @@
 #include "levels.h"
 #include <string.h>
 
-/* MENU có 3 mục: 0=START (chơi Màn), 1=ENDLESS (chơi Vô tận — US5), 2=THEME ("SOON" — US6). */
-#define MENU_ITEMS    3
-#define MENU_START    0
-#define MENU_ENDLESS  1
-#define MENU_THEME    2
+/* PAUSED có 3 mục (US7): 0=Tiếp tục, 1=Lưu & Thoát, 2=Thoát. */
+#define PAUSE_ITEMS   3
 
 /* game — logic thuần (Nguyên tắc II: KHÔNG gọi HAL/CMSIS/FreeRTOS).
  * T019: khởi tạo phiên + truy vấn đọc-chỉ. game_step/game_input_ui ở US1+ (T032–T035, T057+).
@@ -270,9 +267,11 @@ GameEvents game_step(GameState *gs, InputEvent in, uint16_t dt_ms)
   if (gs->mode != ST_PLAYING) {
     return 0u;
   }
-  /* T058: nút chính (IN_SELECT) khi đang chơi → PAUSED, KHÔNG dời sâu (FSM phân tách theo mode). */
+  /* T058: nút chính (IN_SELECT) khi đang chơi → PAUSED, KHÔNG dời sâu (FSM phân tách theo mode).
+   * T081: con trỏ menu PAUSED bắt đầu ở mục 0 (Tiếp tục). */
   if (in.kind == IN_SELECT) {
     gs->mode = ST_PAUSED;
+    gs->menu_sel = 0u;
     return 0u;
   }
   Worm *w = &gs->worm;
@@ -441,37 +440,82 @@ GameEvents game_step(GameState *gs, InputEvent in, uint16_t dt_ms)
   return ev;
 }
 
-/* ===== game_input_ui — điều hướng ngoài ST_PLAYING (US4: T057–T059) =====
- *   MENU:           IN_DIR lên/xuống đổi menu_sel; IN_SELECT = Start (FR-015)
- *   PAUSED:         IN_SELECT = resume (FR-016; menu 3 mục đầy đủ ở US7)
+/* T079c/US7: dựng danh sách mục MENU theo ô lưu khả dụng (cờ has_save do tasks set từ store).
+ * Thứ tự: [Tiếp tục Màn] [Tiếp tục Vô tận] START ENDLESS THEME. game.c & render.c cùng gọi hàm
+ * này → chỉ số mục luôn khớp. Trả số mục (3..5). */
+int game_menu_items(const GameState *gs, MenuItemId out[MENU_MAX_ITEMS])
+{
+  int n = 0;
+  if (gs->has_save[MODE_LEVEL])   out[n++] = MI_CONTINUE_LEVEL;
+  if (gs->has_save[MODE_ENDLESS]) out[n++] = MI_CONTINUE_ENDLESS;
+  out[n++] = MI_START;
+  out[n++] = MI_ENDLESS;
+  out[n++] = MI_THEME;
+  return n;
+}
+
+/* ===== game_input_ui — điều hướng ngoài ST_PLAYING (US4: T057–T059; US7: T081) =====
+ *   MENU:           IN_DIR lên/xuống đổi menu_sel; IN_SELECT chọn mục (động — có thể có "Tiếp tục")
+ *   PAUSED:         menu 3 mục — Tiếp tục / Lưu & Thoát / Thoát (FR-016/028)
  *   LEVEL_COMPLETE: IN_SELECT = lên màn kế (giữ score) (T044, FR-021)
  *   WIN/GAME_OVER:  IN_SELECT = chơi lại → về MENU rồi Start, điểm 0 (FR-017)
- * (Re-seed RNG tại sườn nhấn Start do lớp tasks lo — T061.) */
+ * Flash (load/save) do lớp tasks lo: MENU "Tiếp tục" đặt load_request; PAUSED "Lưu & Thoát" đặt
+ * save_request (Nguyên tắc II — game.c KHÔNG chạm store). Re-seed RNG tại Start cũng do tasks (T061). */
 void game_input_ui(GameState *gs, InputEvent in)
 {
   switch (gs->mode) {
-    case ST_MENU:
+    case ST_MENU: {
+      MenuItemId items[MENU_MAX_ITEMS];
+      int n = game_menu_items(gs, items);
       if (in.kind == IN_DIR) {
         if (in.dir == DIR_UP && gs->menu_sel > 0u) {
           gs->menu_sel--;
-        } else if (in.dir == DIR_DOWN && (uint8_t)(gs->menu_sel + 1u) < MENU_ITEMS) {
+        } else if (in.dir == DIR_DOWN && (int)(gs->menu_sel + 1u) < n) {
           gs->menu_sel++;
         }
       } else if (in.kind == IN_SELECT) {
-        if (gs->menu_sel == MENU_START) {          /* chơi Màn (campaign) */
-          gs->play_mode = MODE_LEVEL;
-          game_start(gs);
-        } else if (gs->menu_sel == MENU_ENDLESS) { /* chơi Vô tận (US5) */
-          gs->play_mode = MODE_ENDLESS;
-          game_start(gs);
-        } else if (gs->menu_sel == MENU_THEME) {   /* US6: cuộn theme (cosmetic), ở lại MENU */
-          gs->theme_id = (uint8_t)((gs->theme_id + 1u) % THEME_COUNT);
+        if ((int)gs->menu_sel >= n) gs->menu_sel = (uint8_t)(n - 1);   /* an toàn nếu lệch */
+        switch (items[gs->menu_sel]) {
+          case MI_CONTINUE_LEVEL:                   /* US7: tiếp tục ván Màn đã lưu */
+            gs->play_mode = MODE_LEVEL;
+            gs->load_request = 1u;                  /* tasks sẽ store_load_game → PLAYING */
+            break;
+          case MI_CONTINUE_ENDLESS:                 /* US7: tiếp tục ván Vô tận đã lưu */
+            gs->play_mode = MODE_ENDLESS;
+            gs->load_request = 1u;
+            break;
+          case MI_START:                            /* chơi Màn mới (campaign) */
+            gs->play_mode = MODE_LEVEL;
+            game_start(gs);
+            break;
+          case MI_ENDLESS:                          /* chơi Vô tận mới (US5) */
+            gs->play_mode = MODE_ENDLESS;
+            game_start(gs);
+            break;
+          case MI_THEME:                            /* US6: cuộn theme (cosmetic), ở lại MENU */
+            gs->theme_id = (uint8_t)((gs->theme_id + 1u) % THEME_COUNT);
+            break;
         }
       }
       break;
+    }
     case ST_PAUSED:
-      if (in.kind == IN_SELECT) {
-        gs->mode = ST_PLAYING;               /* resume */
+      if (in.kind == IN_DIR) {
+        if (in.dir == DIR_UP && gs->menu_sel > 0u) {
+          gs->menu_sel--;
+        } else if (in.dir == DIR_DOWN && (uint8_t)(gs->menu_sel + 1u) < PAUSE_ITEMS) {
+          gs->menu_sel++;
+        }
+      } else if (in.kind == IN_SELECT) {
+        if (gs->menu_sel == 0u) {                   /* Tiếp tục */
+          gs->mode = ST_PLAYING;
+        } else if (gs->menu_sel == 1u) {            /* Lưu & Thoát */
+          gs->mode = ST_PLAYING;                    /* bản lưu mang mode PLAYING (resume vào ván) */
+          gs->save_request = 1u;                    /* tasks ghi Flash rồi đưa về MENU */
+        } else {                                    /* Thoát (không lưu) */
+          gs->mode = ST_MENU;
+          gs->menu_sel = 0u;
+        }
       }
       break;
     case ST_LEVEL_COMPLETE:

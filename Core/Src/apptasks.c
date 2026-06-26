@@ -122,6 +122,13 @@ static void InputTask(void *argument)
   }
 }
 
+/* T082: đồng bộ cờ ô lưu vào state (game/render đọc để dựng MENU "Tiếp tục"). */
+static void sync_save_flags(void)
+{
+  s_game.has_save[MODE_LEVEL]   = store_has_save(MODE_LEVEL)   ? 1u : 0u;
+  s_game.has_save[MODE_ENDLESS] = store_has_save(MODE_ENDLESS) ? 1u : 0u;
+}
+
 /* ── T022: GameTask — nhịp step_ms ổn định ─────────────────────────────────── */
 static void GameTask(void *argument)
 {
@@ -158,22 +165,55 @@ static void GameTask(void *argument)
       }
     }
 
-    /* T076: lưu store ở các sườn chuyển trạng thái (erase Flash ~vài trăm ms — ngoài vòng tick gắt). */
-    if (mode_before == ST_MENU && s_game.mode == ST_PLAYING) {
-      /* Rời menu vào ván: nếu theme đã đổi so với Flash thì lưu lại theme. */
+    /* T076/T082: ghi store ở các sườn chuyển trạng thái (erase Flash ~vài trăm ms — ngoài vòng
+     * tick gắt). game.c chỉ ĐẶT CỜ (load/save_request); Flash thực thi ở đây (Nguyên tắc II). */
+    if (s_game.load_request) {
+      /* MENU "Tiếp tục": nạp ô lưu của chế độ đã chọn → state khôi phục (mode=ST_PLAYING). */
+      s_game.load_request = 0u;
+      PlayMode m = (PlayMode)s_game.play_mode;
+      if (store_has_save(m)) {
+        (void)store_load_game(m, &s_game);     /* ghi đè cả rng → resume xác định; ô lưu GIỮ */
+        s_game.from_save = 1u;                 /* đánh dấu: kết thúc ván này thì xóa ô lưu (FR-031) */
+      }
+      sync_save_flags();
+    } else if (s_game.save_request) {
+      /* PAUSED "Lưu & Thoát": lưu snapshot (mang mode PLAYING) rồi về MENU. */
+      s_game.save_request = 0u;                /* xóa TRƯỚC khi chụp → bản lưu có cờ = 0 */
+      (void)store_save_game((PlayMode)s_game.play_mode, &s_game);
+      s_game.mode = ST_MENU;
+      s_game.menu_sel = 0u;
+      sync_save_flags();
+    } else if (mode_before == ST_MENU && s_game.mode == ST_PLAYING) {
+      /* Rời menu vào ván MỚI (Start, KHÔNG phải Tiếp tục): không đến từ ô lưu. */
+      s_game.from_save = 0u;
+      /* Nếu theme đã đổi so với Flash thì lưu lại theme. */
       if (store_get()->theme_id != s_game.theme_id) {
         store_set_theme((ThemeId)s_game.theme_id);
         (void)store_commit();
       }
-    } else if (mode_before != ST_GAME_OVER && s_game.mode == ST_GAME_OVER &&
-               s_game.play_mode == MODE_ENDLESS) {
-      /* Kết thúc ván Vô tận: cập nhật điểm cao nếu phá kỷ lục → lưu + cập nhật HUD. */
-      uint32_t old_high = store_get()->endless_high;
-      store_set_endless_high(s_game.score);
-      if (store_get()->endless_high != old_high) {
-        (void)store_commit();
-        render_set_endless_best(store_get()->endless_high);
+    }
+
+    /* T082: kết thúc ván (GAME_OVER/WIN) → cập nhật điểm cao Vô tận + xóa ô lưu, GHI FLASH 1 LẦN. */
+    if (mode_before != ST_GAME_OVER && mode_before != ST_WIN &&
+        (s_game.mode == ST_GAME_OVER || s_game.mode == ST_WIN)) {
+      bool need_commit = false;
+      if (s_game.play_mode == MODE_ENDLESS) {
+        uint32_t old_high = store_get()->endless_high;
+        store_set_endless_high(s_game.score);              /* chỉ cập nhật cache (chưa ghi) */
+        if (store_get()->endless_high != old_high) {
+          render_set_endless_best(store_get()->endless_high);
+          need_commit = true;
+        }
       }
+      /* Xóa ô lưu CHỈ khi ván này khôi phục từ nó (FR-031) — tránh xóa nhầm ô lưu cũ khi
+       * người chơi bắt đầu ván MỚI cùng chế độ rồi thua. */
+      if (s_game.from_save && store_has_save(s_game.play_mode)) {
+        store_clear_save(s_game.play_mode);   /* ghi cả sector (gồm điểm cao mới đã vào cache) */
+      } else if (need_commit) {
+        (void)store_commit();                 /* không xóa ô lưu → vẫn ghi điểm cao */
+      }
+      s_game.from_save = 0u;
+      sync_save_flags();
     }
 
     osMutexAcquire(s_snap_mutex, osWaitForever);
@@ -232,6 +272,7 @@ void tasks_start(void)
   store_init();
   s_game.theme_id = (uint8_t)store_get()->theme_id;
   render_set_endless_best(store_get()->endless_high);
+  sync_save_flags();           /* T082: MENU hiển thị "Tiếp tục" nếu Flash có ô lưu hợp lệ */
 
   s_snapshot = s_game;          /* khung khởi tạo (chưa có task nào chạy) */
 

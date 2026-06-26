@@ -11,7 +11,7 @@ CORE    = ../Core/Src
 #   (thêm test_levels.c, test_game.c… link game.c/levels.c ở các phase sau)
 all: test_game test_levels test_rng test_theme test_store
 
-test_game: test_game.c $(CORE)/game.c $(CORE)/rng.c $(CORE)/levels.c
+test_game: test_game.c $(CORE)/game.c $(CORE)/rng.c $(CORE)/levels.c $(CORE)/store_codec.c
 	$(CC) $(CFLAGS) $^ -o $@
 	./$@
 

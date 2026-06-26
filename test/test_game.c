@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "game.h"
+#include "store.h"   /* T079: SavedGame + store_sg_valid/store_crc32 (codec thuần) */
 
 static int occupied_count(const GameState *gs) {
   int n = 0;
@@ -693,8 +694,143 @@ int main(void) {
     assert(g.theme_id == THEME_DESERT);          /* chơi vẫn giữ theme đã chọn */
   }
 
+  /* ================= US7 / M8 — Lưu/Tiếp tục ván (T079) ================= */
+
+  /* ---- T079a: GameState là POD → round-trip byte y hệt & game_step XÁC ĐỊNH sau khôi phục ---- */
+  {
+    GameState g;
+    game_init(&g, 0x5A7Eu);
+    game_start(&g);
+    /* Chạy vài bước cho state "có nội dung" (sâu dời, có thể đã ăn lá/đổi rng). */
+    for (int i = 0; i < 5; i++) {
+      game_step(&g, (InputEvent){ IN_NONE, DIR_RIGHT }, g.step_ms);
+    }
+
+    /* "Lưu" = chép byte sang buffer; "khôi phục" = chép ngược vào bản mới. */
+    unsigned char buf[sizeof(GameState)];
+    memcpy(buf, &g, sizeof buf);
+    GameState restored;
+    memcpy(&restored, buf, sizeof restored);
+    assert(memcmp(&restored, &g, sizeof g) == 0);     /* round-trip byte y hệt */
+
+    /* Xác định: cùng chuỗi input trên bản gốc & bản khôi phục → state trùng khít từng byte. */
+    GameState a = g, b = restored;
+    for (int i = 0; i < 30; i++) {
+      InputEvent in = { IN_DIR, (Dir)((i % 8 < 4) ? DIR_UP : DIR_RIGHT) };
+      game_step(&a, in, a.step_ms);
+      game_step(&b, in, b.step_ms);
+    }
+    assert(memcmp(&a, &b, sizeof a) == 0);             /* khôi phục → tiếp diễn y hệt */
+  }
+
+  /* ---- T079b: SavedGame codec — version+crc hợp lệ; valid điều khiển has_save; sai → bỏ ---- */
+  {
+    GameState g;
+    game_init(&g, 0x5A50u);
+    game_start(&g);
+    for (int i = 0; i < 3; i++) {
+      game_step(&g, (InputEvent){ IN_NONE, DIR_RIGHT }, g.step_ms);
+    }
+    const uint32_t payload = (uint32_t)(sizeof(SavedGame) - sizeof(((SavedGame *)0)->crc));
+
+    /* "save" (mô phỏng store_save_game, KHÔNG Flash): dựng SavedGame + crc. */
+    SavedGame sg;
+    memset(&sg, 0, sizeof sg);
+    sg.valid = 1u;
+    sg.version = SAVE_VERSION;
+    sg.state = g;
+    sg.crc = store_crc32(&sg, payload);
+    assert(store_sg_valid(&sg));            /* cấu trúc nguyên vẹn */
+    assert(sg.valid == 1u);                 /* has_save = cờ valid */
+
+    /* "load": state khôi phục khớp bản đã lưu. */
+    GameState out = sg.state;
+    assert(memcmp(&out, &g, sizeof g) == 0);
+
+    /* "clear" (valid=0 + crc lại): cấu trúc vẫn hợp lệ nhưng has_save sẽ là false. */
+    sg.valid = 0u;
+    sg.crc = store_crc32(&sg, payload);
+    assert(store_sg_valid(&sg));
+    assert(sg.valid == 0u);
+
+    /* crc hỏng → coi như không có (FR-032). */
+    sg.valid = 1u;
+    sg.crc = store_crc32(&sg, payload) ^ 0xA5A5u;
+    assert(!store_sg_valid(&sg));
+
+    /* version tương lai → bỏ. */
+    sg.version = SAVE_VERSION + 1u;
+    sg.crc = store_crc32(&sg, payload);
+    assert(!store_sg_valid(&sg));
+
+    /* Flash trống (toàn 0xFF) → version=0xFFFF ≠ SAVE_VERSION → bỏ (không crash). */
+    memset(&sg, 0xFF, sizeof sg);
+    assert(!store_sg_valid(&sg));
+  }
+
+  /* ---- T079c: MENU động — "Tiếp tục" xuất hiện theo has_save; thứ tự & chỉ số khớp ---- */
+  {
+    GameState g;
+    game_init(&g, 0x5A11u);
+    MenuItemId items[MENU_MAX_ITEMS];
+
+    /* Không ô lưu → 3 mục START/ENDLESS/THEME (giữ tương thích US4/US5). */
+    assert(g.has_save[MODE_LEVEL] == 0 && g.has_save[MODE_ENDLESS] == 0);
+    int n = game_menu_items(&g, items);
+    assert(n == 3);
+    assert(items[0] == MI_START && items[1] == MI_ENDLESS && items[2] == MI_THEME);
+
+    /* Có ô lưu cả 2 chế độ → 2 mục Tiếp tục chèn lên đầu. */
+    g.has_save[MODE_LEVEL] = 1u;
+    g.has_save[MODE_ENDLESS] = 1u;
+    n = game_menu_items(&g, items);
+    assert(n == 5);
+    assert(items[0] == MI_CONTINUE_LEVEL && items[1] == MI_CONTINUE_ENDLESS);
+    assert(items[2] == MI_START && items[4] == MI_THEME);
+
+    /* SELECT trên "Tiếp tục Vô tận" → đặt play_mode + load_request (tasks sẽ nạp). */
+    g.menu_sel = 1u;
+    game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_UP });
+    assert(g.mode == ST_MENU);              /* game.c KHÔNG tự nạp (Flash ở tasks) */
+    assert(g.play_mode == MODE_ENDLESS);
+    assert(g.load_request == 1u);
+  }
+
+  /* ---- T079d: PAUSED menu 3 mục — Tiếp tục/Lưu & Thoát/Thoát ---- */
+  {
+    GameState g;
+    game_init(&g, 0x5A22u);
+    game_start(&g);
+    /* Vào PAUSED → con trỏ về mục 0 (Tiếp tục). */
+    game_step(&g, (InputEvent){ IN_SELECT, DIR_RIGHT }, g.step_ms);
+    assert(g.mode == ST_PAUSED);
+    assert(g.menu_sel == 0u);
+
+    /* Mục 0 = Tiếp tục → PLAYING. */
+    game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_UP });
+    assert(g.mode == ST_PLAYING);
+
+    /* Lại PAUSED, xuống mục 1 = Lưu & Thoát → đặt save_request, state vẫn PLAYING (để resume). */
+    game_step(&g, (InputEvent){ IN_SELECT, DIR_RIGHT }, g.step_ms);
+    game_input_ui(&g, (InputEvent){ IN_DIR, DIR_DOWN });
+    assert(g.menu_sel == 1u);
+    game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_UP });
+    assert(g.save_request == 1u);
+    assert(g.mode == ST_PLAYING);           /* bản lưu mang mode PLAYING; tasks về MENU sau khi ghi */
+
+    /* Lại PAUSED, xuống mục 2 = Thoát (không lưu) → MENU, không save_request. */
+    g.save_request = 0u;
+    game_step(&g, (InputEvent){ IN_SELECT, DIR_RIGHT }, g.step_ms);
+    game_input_ui(&g, (InputEvent){ IN_DIR, DIR_DOWN });
+    game_input_ui(&g, (InputEvent){ IN_DIR, DIR_DOWN });
+    assert(g.menu_sel == 2u);
+    game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_UP });
+    assert(g.mode == ST_MENU);
+    assert(g.save_request == 0u);
+  }
+
   printf("test_game: all assertions passed (T019 init/start + T028-T031 core + "
          "T040 obstacles/levels + T047-T048 leaves/power-ups + T056 menu/pause + "
-         "T069 endless + T075 theme); sizeof(GameState)=%lu\n", (unsigned long)sizeof(GameState));
+         "T069 endless + T075 theme + T079 save/resume); sizeof(GameState)=%lu\n", (unsigned long)sizeof(GameState));
   return 0;
 }

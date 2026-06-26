@@ -220,11 +220,11 @@ còn nguyên.
 
 ### Implementation for User Story 7 (Pause nâng cao + Lưu/Tiếp tục ván)
 
-- [ ] T079 [US7] Test host: round-trip `GameState` (copy byte → khôi phục → `game_step` cho kết quả y hệt); save→clear→`has_save`=false (mô phỏng bằng struct copy, không Flash) trong `test/test_game.c`
-- [ ] T080 [US7] `store`: thêm `store_save_game`/`store_load_game`/`store_has_save`/`store_clear_save` — **2 ô lưu** theo `PlayMode`, version+crc, sai → coi như không có (hợp đồng [contracts/store.md](contracts/store.md)) trong `Core/Src/store.c` (phụ thuộc T071)
-- [ ] T081 [US7] PAUSED → **menu 3 mục** (Tiếp tục / Lưu & Thoát / Thoát) + điều hướng joystick trong `Core/Src/game.c` (phụ thuộc T058)
-- [ ] T082 [US7] MENU "Tiếp tục [chế độ]" khi `store_has_save` → `store_load_game` → PLAYING; "Lưu & Thoát" → `store_save_game`+về MENU; xóa ô lưu khi GAME_OVER/WIN (`store_clear_save`) trong `Core/Src/game.c` + `Core/Src/apptasks.c` (phụ thuộc T076, T080, T081)
-- [ ] T083 [US7] Render menu PAUSED 3 mục + chỉ báo "Tiếp tục" ở MENU trong `Core/Src/render.c` (phụ thuộc T060)
+- [x] T079 [US7] Test host: round-trip `GameState` (copy byte → khôi phục → `game_step` cho kết quả y hệt) + codec `SavedGame` (version/crc, flag `valid`, hỏng/blank → bỏ) + MENU động + PAUSED 3 mục trong `test/test_game.c` (link thêm `store_codec.c`); `make -C test` xanh (5/5)
+- [x] T080 [US7] `store`: thêm `SavedGame` + `store_sg_valid` (codec thuần) + `store_save_game`/`store_load_game`/`store_has_save`/`store_clear_save` — **2 ô lưu** theo `PlayMode`, version+crc, sai → coi như không có; cả 3 record (cài đặt + 2 ô lưu) **cùng sector 4** → ghi = erase sector + program lại toàn bộ từ cache (hợp đồng [contracts/store.md](contracts/store.md)) trong `Core/Src/store.c`+`store_codec.c` (phụ thuộc T071)
+- [x] T081 [US7] PAUSED → **menu 3 mục** (Tiếp tục / Lưu & Thoát / Thoát) + điều hướng joystick; MENU **động** (`game_menu_items`) chèn mục "Tiếp tục" theo cờ `has_save` (game.c chỉ đặt `save_request`/`load_request` — Nguyên tắc II) trong `Core/Src/game.c`+`Core/Inc/game.h` (phụ thuộc T058)
+- [x] T082 [US7] MENU "Tiếp tục [chế độ]" khi `store_has_save` → `store_load_game` → PLAYING; "Lưu & Thoát" → `store_save_game`+về MENU; xóa ô lưu khi GAME_OVER/WIN **chỉ nếu ván đến từ ô lưu** (`from_save`, tránh xóa nhầm); điểm cao Vô tận + xóa ô lưu gộp **1 lần ghi Flash** trong `Core/Src/apptasks.c` (phụ thuộc T076, T080, T081)
+- [x] T083 [US7] Render menu PAUSED 3 mục + MENU động hiển thị mục "Tiếp tục" (căn giữa, nhãn theo `game_menu_items`) trong `Core/Src/render.c` (phụ thuộc T060)
 - [ ] T084 [US7] Demo: chơi → Pause → Lưu & Thoát → tắt/bật nguồn → Tiếp tục đúng trạng thái; kết thúc → save tự mất; cả 2 mode độc lập; `make -C test` xanh + on-board (Acceptance US7, FR-028..032)
 
 **Checkpoint**: Game đầy đủ 7 user story — 2 chế độ, 2 theme, lưu bền vững, pause + lưu/tiếp tục ván.

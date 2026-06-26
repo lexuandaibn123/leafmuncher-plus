@@ -390,7 +390,27 @@ static void draw_menu_item(int cx, int y, int w, int h, const char *label, int l
   }
 }
 
-/* T060: màn MENU — tiêu đề ×2, 3 mục điều hướng được; START chạy, ENDLESS/THEME khoá (SOON). */
+/* T083: dựng nhãn 1 mục MENU vào buf (kết \0); trả độ dài. THEME hiện tên theme hiện hành. */
+static int menu_label(const GameState *gs, MenuItemId id, char *buf)
+{
+  int n = 0;
+  if (id == MI_THEME) {
+    const char *p = "THEME:";
+    while (*p) buf[n++] = *p++;
+    const char *nm = theme_get(gs->theme_id)->name;
+    while (*nm && n < 22) buf[n++] = *nm++;
+  } else {
+    const char *s = (id == MI_CONTINUE_LEVEL)   ? "CONTINUE LV"   :
+                    (id == MI_CONTINUE_ENDLESS) ? "CONTINUE ENDL" :
+                    (id == MI_START)            ? "START"         : "ENDLESS";
+    while (s[n] && n < 22) { buf[n] = s[n]; n++; }
+  }
+  buf[n] = 0;
+  return n;
+}
+
+/* T060/T083: màn MENU — tiêu đề ×2 + danh sách mục ĐỘNG (có thể chèn "Tiếp tục" theo ô lưu).
+ * game.c & render.c cùng gọi game_menu_items → thứ tự/chỉ số mục khớp tuyệt đối. */
 static void draw_menu(const GameState *gs)
 {
   uint16_t bg = gfx_rgb565(8, 10, 26);
@@ -402,30 +422,36 @@ static void draw_menu(const GameState *gs)
   gfx_text(tx + 11 * 16, 24, "+", gfx_rgb565(255, 215, 0), bg, 2);
   gfx_fill_rect(tx, 60, 12 * 16, 2, gfx_rgb565(60, 120, 60));   /* gạch accent dưới tiêu đề */
 
-  draw_menu_item(SCREEN_W / 2, 90,  176, 32, "START",   5, gs->menu_sel == 0, 0);
-  draw_menu_item(SCREEN_W / 2, 128, 176, 32, "ENDLESS", 7, gs->menu_sel == 1, 0);  /* US5: chạy được */
+  MenuItemId items[MENU_MAX_ITEMS];
+  int n = game_menu_items(gs, items);
 
-  /* US6: mục THEME hiện tên theme hiện hành; SELECT cuộn vòng (FOREST/DESERT). */
-  char tlabel[16];
-  int tn = 0;
-  const char *tp = "THEME:";
-  while (*tp) tlabel[tn++] = *tp++;
-  const char *nm = theme_get(gs->theme_id)->name;
-  while (*nm && tn < 15) tlabel[tn++] = *nm++;
-  tlabel[tn] = 0;
-  draw_menu_item(SCREEN_W / 2, 166, 176, 32, tlabel, tn, gs->menu_sel == 2, 0);
+  /* Khối mục căn giữa vùng [72,232]; mỗi mục cao H, bước S (co lại khi có nhiều mục Tiếp tục). */
+  const int H = 26, S = 30, top = 72, bot = 232;
+  int block = (n - 1) * S + H;
+  int y0 = top + ((bot - top) - block) / 2;
+  if (y0 < top) y0 = top;
 
-  gfx_text((SCREEN_W - 19 * 8) / 2, 210, "AXIS: MOVE  BTN: OK", gfx_rgb565(90, 92, 112), bg, 1);
+  for (int i = 0; i < n; i++) {
+    char buf[24];
+    int len = menu_label(gs, items[i], buf);
+    draw_menu_item(SCREEN_W / 2, y0 + i * S, 200, H, buf, len, gs->menu_sel == (uint8_t)i, 0);
+  }
+
+  int hint_y = y0 + block + 8;
+  if (hint_y <= 230) {
+    gfx_text((SCREEN_W - 19 * 8) / 2, hint_y, "AXIS: MOVE  BTN: OK", gfx_rgb565(90, 92, 112), bg, 1);
+  }
 }
 
-/* T060: overlay PAUSED — vẽ sân, phủ mờ, hộp có viền + thanh tiêu đề (gfx_blend_rect, research §14). */
+/* T060/T083: overlay PAUSED — vẽ sân, phủ mờ, hộp viền + thanh tiêu đề + MENU 3 mục
+ * (Tiếp tục / Lưu & Thoát / Thoát). gfx_blend_rect: research §14. */
 static void draw_paused(const GameState *gs)
 {
   draw_hud(gs);
   draw_playing(gs);
   gfx_blend_rect(0, HUD_H, SCREEN_W, SCREEN_H - HUD_H, gfx_rgb565(0, 0, 0), 160);
 
-  int bw = 200, bh = 104, bx = (SCREEN_W - bw) / 2, by = (SCREEN_H - bh) / 2;
+  int bw = 216, bh = 158, bx = (SCREEN_W - bw) / 2, by = (SCREEN_H - bh) / 2;
   uint16_t border = gfx_rgb565(255, 235, 120);
   uint16_t fill   = gfx_rgb565(22, 26, 44);
   uint16_t barbg  = gfx_rgb565(40, 46, 74);
@@ -435,8 +461,14 @@ static void draw_paused(const GameState *gs)
   gfx_fill_rect(bx + 2, by + 2, bw - 4, 40, barbg);
   gfx_text(SCREEN_W / 2 - 6 * 16 / 2, text_cy(by + 2, 40, 2), "PAUSED", border, barbg, 2);
 
-  gfx_text(SCREEN_W / 2 - 12 * 8 / 2, by + 54, "PRESS BUTTON", gfx_rgb565(225, 225, 235), fill, 1);
-  gfx_text(SCREEN_W / 2 - 9 * 8 / 2, by + 76, "TO RESUME", gfx_rgb565(150, 150, 165), fill, 1);
+  /* 3 mục — con trỏ sáng theo gs->menu_sel (đặt ở game_input_ui PAUSED). */
+  static const char *const L[3]  = { "RESUME", "SAVE & EXIT", "EXIT" };
+  static const int         LN[3] = { 6, 11, 4 };
+  int iy = by + 50, iw = 184, ih = 26, step = 30;
+  for (int i = 0; i < 3; i++) {
+    draw_menu_item(SCREEN_W / 2, iy + i * step, iw, ih, L[i], LN[i],
+                   gs->menu_sel == (uint8_t)i, 0);
+  }
 }
 
 static void draw_by_mode(const GameState *gs)
