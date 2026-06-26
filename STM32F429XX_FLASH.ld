@@ -60,11 +60,15 @@ _Min_Heap_Size = 0x200;      /* required amount of heap  */
 _Min_Stack_Size = 0x400; /* required amount of stack */
 
 /* Specify the memory areas */
+/* T077 store: code dồn vào sector 0-3 (FLASH 64K). Sector 4 @0x08010000 (64K) dành riêng cho
+ * `store` (PersistData), ghi lúc chạy → KHÔNG nằm trong ảnh .hex. Tách vùng STORE để nếu code
+ * tràn quá 64K thì BÁO LỖI LINK (không đè âm thầm lên dữ liệu lưu). Reserve lại sau mỗi CubeMX Generate. */
 MEMORY
 {
 RAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 192K
 CCMRAM (xrw)      : ORIGIN = 0x10000000, LENGTH = 64K
-FLASH (rx)      : ORIGIN = 0x8000000, LENGTH = 2048K
+FLASH (rx)      : ORIGIN = 0x8000000, LENGTH = 64K
+STORE (r)      : ORIGIN = 0x8010000, LENGTH = 64K   /* sector 4 — store_commit() ghi runtime */
 }
 
 /* Define output sections */
