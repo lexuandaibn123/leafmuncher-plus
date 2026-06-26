@@ -91,6 +91,24 @@ Bám US5/US6/US7 + [contracts/theme.md](contracts/theme.md), [contracts/store.md
 
 ---
 
+## Đối chiếu 9 peripheral (constitution §2)
+
+Mỗi peripheral bắt buộc có **một điểm nghiệm thu quan sát được**:
+
+| # | Peripheral | Dùng cho | Nghiệm thu tại |
+|---|---|---|---|
+| 1 | **GPIO** | LED LD3/LD4 (PG13/PG14), nút joystick JOY_SW (PB7) | M1: LED heartbeat sáng/tắt; nhấn nút → đổi state |
+| 2 | **ADC + DMA** | Joystick analog VRx (PA5) / VRy (PC3) đọc liên tục qua DMA | M1: gạt joystick 4 hướng → ô di chuyển; thả → đứng yên |
+| 3 | **Timer (TIM7)** | Đồng hồ ms thực + nhịp heartbeat (PSC/ARR → 1ms) | M1: LED xanh nhấp nháy đều ~1Hz |
+| 4 | **Interrupt** | TIM7 update IRQ → `timebase_tick_isr` (NVIC) | M1: heartbeat đều = ISR chạy ổn định |
+| 5 | **LTDC** | Layer RGB565 quét panel ILI9341 (init qua SPI5) | M1: panel sáng, hiện nền + ô màu, không nhấp nháy |
+| 6 | **FMC / SDRAM** | 2 framebuffer @ `0xD0000000`/`0xD0025800` (8MB SDRAM) | M2: vẽ HUD/sân/sâu mượt từ framebuffer SDRAM |
+| 7 | **DMA2D** | `gfx_fill_rect` (R2M) · `gfx_blit`/`gfx_text` (M2M) · `gfx_blend_rect` (M2M_BLEND) | M2: tô nền nhanh; M7/M8: overlay mờ hộp PAUSED |
+| 8 | **Flash nội (store)** | Cài đặt (theme + điểm cao Vô tận) + 2 ô lưu ván — sector 4 | M8: tắt/bật nguồn vẫn giữ theme/điểm cao + "Tiếp tục" ván |
+| 9 | **FreeRTOS** | 3 task (Input/Game/Render) + queue + mutex + semaphore | M1/M2: 3 task chạy đồng thời, không kẹt/không xé hình |
+
+---
+
 ## Định nghĩa "Done" của plan này
 - [ ] M1→M8 đều có một bản **nạp được + demo được** (SC-005, NT VI).
 - [ ] `make -C test` xanh cho toàn bộ luật core (SC-006).

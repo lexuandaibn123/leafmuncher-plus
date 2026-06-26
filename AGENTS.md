@@ -86,8 +86,22 @@ Module game (tự viết, đặt trong `Core/Src` & `Core/Inc`):
 `/speckit-constitution` → `/speckit-specify` → *(tuỳ chọn `/speckit-clarify`)* → `/speckit-plan`
 → `/speckit-tasks` → `/speckit-implement`.
 
-Trạng thái hiện tại: ✅ constitution v1.0.0, ✅ spec (`specs/001-leafmuncher-plus-game`).
-Bước kế: `/speckit-plan`.
+Trạng thái hiện tại: ✅ constitution v1.0.0, ✅ spec + plan + tasks (`specs/001-leafmuncher-plus-game`),
+✅ đang `/speckit-implement`.
+
+**Trạng thái mốc (M1→M8):**
+
+| Mốc | Nội dung | Trạng thái |
+|---|---|---|
+| M1 | Bring-up: LED heartbeat, đồng hồ ms (TIM7), 3 task FreeRTOS | ✅ |
+| M2 | gfx: 2 framebuffer SDRAM + LTDC + DMA2D, font 8×16, HUD/sân | ✅ |
+| M3 | US1 — rắn cổ điển: di chuyển, ăn lá, va chạm, điểm (MVP) | ✅ |
+| M4 | US2 — 5 màn + chướng ngại + qua màn/thắng | ✅ |
+| M5–M6 | US3 — lá vàng/độc + power-up SPEED/SLOW/GHOST/PHASE | ✅ |
+| M7 | US4 — MENU / PAUSE / chơi lại; re-seed RNG tại Start | ✅ |
+| M8 | US5 Vô tận · US6 2 theme · **US7 lưu/tiếp tục ván (Flash)** · visual sprite (T091) | ✅ |
+
+Còn lại: Polish T085–T090 (tài liệu UI, đối chiếu 9 peripheral, nghiệm thu end-to-end).
 
 ## 8. Bẫy thường gặp
 

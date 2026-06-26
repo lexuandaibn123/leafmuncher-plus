@@ -235,12 +235,12 @@ còn nguyên.
 
 **Purpose**: Hoàn thiện đa-story.
 
-- [ ] T085 [P] Hoàn thiện `docs/ui/ui-design.md` với bảng màu/font thực tế đã dùng + 2 theme
-- [ ] T086 Rà soát dirty-rect & xác nhận **không nhấp nháy/không xé hình** bằng mắt (SC-003) trong `Core/Src/render.c`/`gfx.c`
-- [ ] T087 Rà soát warning từ `./build.sh`, xử lý (NT VII — không tích luỹ warning)
-- [ ] T088 [P] Cập nhật trạng thái mốc M1→M8 trong [AGENTS.md](../../AGENTS.md) §7
-- [ ] T089 Đối chiếu **9 peripheral** (GPIO, ADC+DMA, **Timer**, Interrupt, LTDC, FMC/SDRAM, DMA2D, **Flash**, FreeRTOS — constitution §2) đều nghiệm thu được trong [quickstart.md](quickstart.md); bổ sung mục thiếu
-- [ ] T090 Chạy trọn [quickstart.md](quickstart.md) end-to-end (M1→M8) làm nghiệm thu cuối
+- [x] T085 [P] Hoàn thiện `docs/ui/ui-design.md` với bảng màu/font thực tế đã dùng + 2 theme (Rừng/Sa mạc) + mục §3b sprite item/sâu (T091); khớp `theme.c`/`render.c`
+- [ ] T086 Rà soát dirty-rect & xác nhận **không nhấp nháy/không xé hình** bằng mắt (SC-003) trong `Core/Src/render.c`/`gfx.c` *(nghiệm thu on-board — chạy cùng T090)*
+- [x] T087 Rà soát warning từ `./build.sh`: build **0 warning/0 error** (NT VII)
+- [x] T088 [P] Cập nhật trạng thái mốc M1→M8 (bảng) trong [AGENTS.md](../../AGENTS.md) §7
+- [x] T089 Đối chiếu **9 peripheral** (GPIO, ADC+DMA, **Timer**, Interrupt, LTDC, FMC/SDRAM, DMA2D, **Flash**, FreeRTOS — constitution §2) — thêm bảng peripheral→điểm nghiệm thu trong [quickstart.md](quickstart.md)
+- [ ] T090 Chạy trọn [quickstart.md](quickstart.md) end-to-end (M1→M8) làm nghiệm thu cuối *(on-board — người dùng chạy)*
 - [X] T091 [P] **Visual cuối — sprite item + sâu liền mạch** (research §15 "YÊU CẦU CHỐT") trong `Core/Src/render.c`:
   sprite **indexed 16×16** (bitmap + bảng màu ký tự, vẽ run-length qua `draw_sprite`, pixel trong suốt) — nguồn
   chuẩn & duyệt bằng mắt qua `tools/gen_sprites_preview.py` (PNG ở `docs/ui/sprites/`). (1) lá thường theo theme —
