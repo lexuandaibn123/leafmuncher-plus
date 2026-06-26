@@ -7,6 +7,7 @@
 #include "render.h"
 #include "gfx.h"
 #include "rng.h"          /* T061 — re-seed RNG tại sườn nhấn Start */
+#include "store.h"        /* T076 — cài đặt bền vững (theme + điểm cao Vô tận) qua Flash */
 
 /* apptasks — lớp tích hợp HAL + vòng đời FreeRTOS.
  *   T016 — LED helper + safe-stop
@@ -132,6 +133,7 @@ static void GameTask(void *argument)
     osDelayUntil(t);
 
     InputEvent in = input_q_latest();
+    GameMode mode_before = s_game.mode;                      /* T076: bắt chuyển trạng thái để lưu store */
     if (s_game.mode == ST_PLAYING) {
       (void)game_step(&s_game, in, game_step_ms(&s_game));   /* bước chơi (US1); IN_SELECT → PAUSED */
     } else {
@@ -153,6 +155,24 @@ static void GameTask(void *argument)
           game_input_ui(&s_game, in);   /* Start · resume · advance · replay (nút edge sẵn ở input) */
         }
         s_nav_neutral = 1;              /* về trung tâm / vừa bấm nút → cho phép gạt kế */
+      }
+    }
+
+    /* T076: lưu store ở các sườn chuyển trạng thái (erase Flash ~vài trăm ms — ngoài vòng tick gắt). */
+    if (mode_before == ST_MENU && s_game.mode == ST_PLAYING) {
+      /* Rời menu vào ván: nếu theme đã đổi so với Flash thì lưu lại theme. */
+      if (store_get()->theme_id != s_game.theme_id) {
+        store_set_theme((ThemeId)s_game.theme_id);
+        (void)store_commit();
+      }
+    } else if (mode_before != ST_GAME_OVER && s_game.mode == ST_GAME_OVER &&
+               s_game.play_mode == MODE_ENDLESS) {
+      /* Kết thúc ván Vô tận: cập nhật điểm cao nếu phá kỷ lục → lưu + cập nhật HUD. */
+      uint32_t old_high = store_get()->endless_high;
+      store_set_endless_high(s_game.score);
+      if (store_get()->endless_high != old_high) {
+        (void)store_commit();
+        render_set_endless_best(store_get()->endless_high);
       }
     }
 
@@ -206,6 +226,13 @@ void tasks_start(void)
    * re-seed lại tại sườn nhấn Start trong GameTask (T061). */
   uint32_t seed = input_entropy() ^ (uint32_t)__HAL_TIM_GET_COUNTER(&htim7);
   game_init(&s_game, seed);     /* T061: boot dừng ở MENU (FR-014), KHÔNG vào PLAYING ngay */
+
+  /* T076: nạp cài đặt bền vững từ Flash → theme đã chọn cho render + điểm cao Vô tận cho HUD.
+   * Flash trống/hỏng → store_init nạp mặc định (theme=FOREST, high=0), không crash (FR-027). */
+  store_init();
+  s_game.theme_id = (uint8_t)store_get()->theme_id;
+  render_set_endless_best(store_get()->endless_high);
+
   s_snapshot = s_game;          /* khung khởi tạo (chưa có task nào chạy) */
 
   s_input_th  = osThreadNew(InputTask,  NULL, &s_input_attr);

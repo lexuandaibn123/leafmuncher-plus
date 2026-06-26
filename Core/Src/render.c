@@ -43,21 +43,26 @@ static int put_u32(char *dst, uint32_t v)
   return n;
 }
 
+/* T074/US5: điểm cao Vô tận (từ `store`, set bởi tasks) — chỉ để HUD hiển thị. */
+static uint32_t s_endless_best = 0u;
+void render_set_endless_best(uint32_t best) { s_endless_best = best; }
+
 static void draw_hud(const GameState *gs)
 {
   const Theme *th = theme_get(gs->theme_id);
   uint16_t bg = th->hud_bg;
   gfx_fill_rect(0, 0, SCREEN_W, HUD_H, bg);
 
-  char line[28];
+  char line[48];           /* "SCORE <10>  ENDLESS  BEST <10>" + NUL → cần ~43 */
   int p = 0;
   const char *s = "SCORE ";
   while (*s) line[p++] = *s++;
   p += put_u32(line + p, gs->score);
   line[p++] = ' '; line[p++] = ' ';
-  if (gs->play_mode == MODE_ENDLESS) {           /* US5: Vô tận không có level → nhãn ENDLESS */
-    const char *m = "ENDLESS";
+  if (gs->play_mode == MODE_ENDLESS) {           /* US5: Vô tận không có level → ENDLESS + BEST */
+    const char *m = "ENDLESS  BEST ";
     while (*m) line[p++] = *m++;
+    p += put_u32(line + p, s_endless_best);
   } else {
     line[p++] = 'L'; line[p++] = 'V'; line[p++] = ' ';
     p += put_u32(line + p, (uint32_t)(gs->level_idx + 1));

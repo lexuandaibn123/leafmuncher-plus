@@ -31,12 +31,16 @@ typedef struct {
 
 ## Hợp đồng / quyết định
 
-- **Backing**: **1 sector Flash 16 KB ở Bank 2 — sector 12 @ `0x08100000`**, chứa cài đặt `PersistData`
-  + 2 ô `SavedGame` (~1.9 KB / 16 KB → thừa ~8×). Code nằm Bank 1 → **dual-bank**: xóa/ghi Bank 2 không
-  đơ instruction fetch ở Bank 1. Reserve sector này trong `STM32F429XX_FLASH.ld` (MEMORY riêng / `NOLOAD`).
+- **Backing**: **sector 4 single-bank — `0x08010000`, 64 KB** (code ~56 KB nằm sector 0–3 @ `0x08000000`,
+  64 KB; sector 4 cách xa, KHÔNG phụ thuộc option bit DB1M). Chứa cài đặt `PersistData` + (Đợt B) 2 ô
+  `SavedGame` (~2 KB / 64 KB → thừa rộng). Reserve trong `STM32F429XX_FLASH.ld` (vùng `STORE` riêng + thu
+  `FLASH` code về 64 K → code tràn sang sẽ **báo lỗi link**, không ghi đè âm thầm). `.hex` không chứa
+  sector 4 (ghi lúc chạy). *(Quyết định khác bản đầu "sector 12 dual-bank": đơn giản & không brick được;
+  đánh đổi là erase 64 KB làm CPU dừng ~1 s — nhưng chỉ ở chuyển trạng thái MENU/GAME_OVER, không lúc chơi.)*
 - **Ghi**: **read-modify-write** qua RAM-mirror cụm record → **xóa cả sector → ghi lại 1 lần** (xóa là cả
   sector). Không wear-leveling (tần suất ghi thấp). Độ bền ~10.000 chu kỳ xóa ⇒ dư cho đồ án.
-- **Thời gian**: xóa 16 KB ~ vài trăm ms → chỉ gọi lúc PAUSED/GAME_OVER (đã nêu mục Đồng thời).
+- **CRC**: CRC32 **phần mềm** trong `store.c` (tự chứa, không phụ thuộc thứ tự init ngoại vi CRC `hcrc`).
+- **Thời gian**: xóa sector 4 (64 KB) ~ vài trăm ms–1 s → chỉ gọi lúc rời MENU/GAME_OVER (mục Đồng thời).
 - **Thời điểm commit**: chỉ `store_commit()` khi có thay đổi đáng lưu (lập điểm cao mới, đổi theme rồi
   rời menu) — KHÔNG ghi mỗi frame (tránh mòn Flash).
 - **An toàn**: dữ liệu trống/hỏng → `store_init` nạp mặc định, không crash (Edge case spec, FR-027).
