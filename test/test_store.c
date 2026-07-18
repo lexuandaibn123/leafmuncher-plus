@@ -14,21 +14,20 @@ int main(void)
   uint8_t a[4] = {1, 2, 3, 4}, b[4] = {1, 2, 3, 5};
   assert(store_crc32(a, 4) != store_crc32(b, 4));
 
-  /* T071b — defaults: magic/version đúng, theme=FOREST, high=0, và TỰ hợp lệ. */
+  /* T071b — defaults: magic/version đúng, high=0, và TỰ hợp lệ. */
   PersistData pd;
   store_pd_defaults(&pd);
   assert(pd.magic == STORE_MAGIC);
   assert(pd.version == STORE_VERSION);
-  assert(pd.theme_id == THEME_FOREST);
+  assert(pd._rsv == 0u);
   assert(pd.endless_high == 0u);
   assert(store_pd_valid(&pd));
 
   /* T071c — round-trip: cập nhật field rồi tính lại crc → vẫn hợp lệ; đọc lại đúng giá trị. */
-  pd.theme_id = THEME_DESERT;
   pd.endless_high = 12345u;
   pd.crc = store_crc32(&pd, (uint32_t)(sizeof(PersistData) - sizeof(pd.crc)));
   assert(store_pd_valid(&pd));
-  assert(pd.theme_id == THEME_DESERT && pd.endless_high == 12345u);
+  assert(pd.endless_high == 12345u);
 
   /* T071d — hỏng crc → invalid (fallback về mặc định ở store_init). */
   pd.crc ^= 0xFFFFFFFFu;

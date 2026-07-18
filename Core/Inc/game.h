@@ -66,7 +66,6 @@ typedef enum {
 } GameMode;                              /* trạng thái máy trạng thái (FSM) */
 
 typedef enum { MODE_LEVEL, MODE_ENDLESS } PlayMode;               /* chế độ chơi (US5) */
-typedef enum { THEME_FOREST, THEME_DESERT, THEME_COUNT } ThemeId; /* theme (US6) */
 
 typedef enum {
   LEAF_NONE, LEAF_NORMAL, LEAF_GOLD, LEAF_POISON, LEAF_POWERUP
@@ -109,7 +108,6 @@ typedef struct {
   uint32_t  score;                   /* điểm tích luỹ (clamp >= 0) */
   uint16_t  step_ms;                 /* nhịp tick CƠ BẢN của màn (hệ số power-up áp ở game_step_ms) */
   uint8_t   menu_sel;                /* lựa chọn đang sáng ở MENU/PAUSED */
-  uint8_t   theme_id;                /* ThemeId hiển thị (COSMETIC — game_step bỏ qua; chỉ render đọc) */
   uint32_t  rng;                     /* state PRNG (xorshift32) */
   /* US7 — cờ ô lưu (EXTERNAL: tasks set từ store, game/render chỉ ĐỌC để dựng MENU; game_step bỏ qua). */
   uint8_t   has_save[2];             /* ô lưu khả dụng theo PlayMode (MODE_LEVEL/MODE_ENDLESS) */
@@ -121,9 +119,9 @@ typedef struct {
 /* MENU động (US7): có thể chèn mục "Tiếp tục" theo ô lưu khả dụng. game.c & render.c cùng gọi
  * game_menu_items để dựng DANH SÁCH MỤC y hệt nhau (tránh lệch chỉ số). */
 typedef enum {
-  MI_CONTINUE_LEVEL, MI_CONTINUE_ENDLESS, MI_START, MI_ENDLESS, MI_THEME
+  MI_CONTINUE_LEVEL, MI_CONTINUE_ENDLESS, MI_START, MI_ENDLESS
 } MenuItemId;
-#define MENU_MAX_ITEMS 5
+#define MENU_MAX_ITEMS 4
 
 /* ===================== Sự kiện (contracts/game-core.md) ===================== */
 typedef uint16_t GameEvents;   /* bitmask trả về từ game_step */

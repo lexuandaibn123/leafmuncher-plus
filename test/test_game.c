@@ -582,22 +582,16 @@ int main(void) {
     assert(g.leaf_normal.type == LEAF_NORMAL);   /* lá đầu màn đã sinh */
   }
 
-  /* ---- T056b: MENU nav 3 mục (START/ENDLESS/THEME), clamp 2 đầu; SELECT mục khoá = no-op ---- */
+  /* ---- T056b: MENU nav 2 mục (START/ENDLESS), clamp 2 đầu ---- */
   {
     GameState g;
     game_init(&g, 0x4041u);
     assert(g.menu_sel == 0);
     game_input_ui(&g, (InputEvent){ IN_DIR, DIR_DOWN });   /* → ENDLESS */
     assert(g.menu_sel == 1);
-    game_input_ui(&g, (InputEvent){ IN_DIR, DIR_DOWN });   /* → THEME */
-    assert(g.menu_sel == 2);
     game_input_ui(&g, (InputEvent){ IN_DIR, DIR_DOWN });   /* clamp ở cuối */
-    assert(g.menu_sel == 2);
-    /* SELECT trên mục "SOON" (THEME) → không vào game, vẫn ở MENU. */
-    game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_UP });
-    assert(g.mode == ST_MENU);
+    assert(g.menu_sel == 1);
     /* Lên lại START rồi SELECT → vào PLAYING. */
-    game_input_ui(&g, (InputEvent){ IN_DIR, DIR_UP });
     game_input_ui(&g, (InputEvent){ IN_DIR, DIR_UP });
     assert(g.menu_sel == 0);
     game_input_ui(&g, (InputEvent){ IN_DIR, DIR_UP });     /* clamp ở đầu */
@@ -672,26 +666,6 @@ int main(void) {
     GameEvents e = game_step(&g, (InputEvent){ IN_NONE, DIR_RIGHT }, g.step_ms);
     assert(e & EV_ATE_NORMAL);
     assert(g.step_ms == STEP_MS_MIN);          /* không xuống dưới sàn */
-  }
-
-  /* ---- T075: MENU mục THEME (menu_sel=2) + SELECT → cuộn theme_id, KHÔNG vào game ---- */
-  {
-    GameState g;
-    game_init(&g, 0x7E3u);
-    assert(g.theme_id == THEME_FOREST);          /* mặc định */
-    g.menu_sel = 2;                              /* trỏ mục THEME */
-    game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_UP });
-    assert(g.mode == ST_MENU);                   /* vẫn ở MENU (không start) */
-    assert(g.theme_id == THEME_DESERT);          /* cuộn 1 nấc */
-    game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_UP });
-    assert(g.theme_id == THEME_FOREST);          /* cuộn vòng lại */
-    /* theme_id giữ qua game_start (cosmetic, không bị reset). */
-    g.menu_sel = 2;
-    game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_UP });   /* → DESERT */
-    g.menu_sel = 0;
-    game_input_ui(&g, (InputEvent){ IN_SELECT, DIR_UP });   /* START */
-    assert(g.mode == ST_PLAYING);
-    assert(g.theme_id == THEME_DESERT);          /* chơi vẫn giữ theme đã chọn */
   }
 
   /* ================= US7 / M8 — Lưu/Tiếp tục ván (T079) ================= */
@@ -774,19 +748,19 @@ int main(void) {
     game_init(&g, 0x5A11u);
     MenuItemId items[MENU_MAX_ITEMS];
 
-    /* Không ô lưu → 3 mục START/ENDLESS/THEME (giữ tương thích US4/US5). */
+    /* Không ô lưu → 2 mục START/ENDLESS (giữ tương thích US4/US5). */
     assert(g.has_save[MODE_LEVEL] == 0 && g.has_save[MODE_ENDLESS] == 0);
     int n = game_menu_items(&g, items);
-    assert(n == 3);
-    assert(items[0] == MI_START && items[1] == MI_ENDLESS && items[2] == MI_THEME);
+    assert(n == 2);
+    assert(items[0] == MI_START && items[1] == MI_ENDLESS);
 
     /* Có ô lưu cả 2 chế độ → 2 mục Tiếp tục chèn lên đầu. */
     g.has_save[MODE_LEVEL] = 1u;
     g.has_save[MODE_ENDLESS] = 1u;
     n = game_menu_items(&g, items);
-    assert(n == 5);
+    assert(n == 4);
     assert(items[0] == MI_CONTINUE_LEVEL && items[1] == MI_CONTINUE_ENDLESS);
-    assert(items[2] == MI_START && items[4] == MI_THEME);
+    assert(items[2] == MI_START && items[3] == MI_ENDLESS);
 
     /* SELECT trên "Tiếp tục Vô tận" → đặt play_mode + load_request (tasks sẽ nạp). */
     g.menu_sel = 1u;
@@ -831,6 +805,6 @@ int main(void) {
 
   printf("test_game: all assertions passed (T019 init/start + T028-T031 core + "
          "T040 obstacles/levels + T047-T048 leaves/power-ups + T056 menu/pause + "
-         "T069 endless + T075 theme + T079 save/resume); sizeof(GameState)=%lu\n", (unsigned long)sizeof(GameState));
+         "T069 endless + T079 save/resume); sizeof(GameState)=%lu\n", (unsigned long)sizeof(GameState));
   return 0;
 }

@@ -441,8 +441,8 @@ GameEvents game_step(GameState *gs, InputEvent in, uint16_t dt_ms)
 }
 
 /* T079c/US7: dựng danh sách mục MENU theo ô lưu khả dụng (cờ has_save do tasks set từ store).
- * Thứ tự: [Tiếp tục Màn] [Tiếp tục Vô tận] START ENDLESS THEME. game.c & render.c cùng gọi hàm
- * này → chỉ số mục luôn khớp. Trả số mục (3..5). */
+ * Thứ tự: [Tiếp tục Màn] [Tiếp tục Vô tận] START ENDLESS. game.c & render.c cùng gọi hàm
+ * này → chỉ số mục luôn khớp. Trả số mục (2..4). */
 int game_menu_items(const GameState *gs, MenuItemId out[MENU_MAX_ITEMS])
 {
   int n = 0;
@@ -450,7 +450,6 @@ int game_menu_items(const GameState *gs, MenuItemId out[MENU_MAX_ITEMS])
   if (gs->has_save[MODE_ENDLESS]) out[n++] = MI_CONTINUE_ENDLESS;
   out[n++] = MI_START;
   out[n++] = MI_ENDLESS;
-  out[n++] = MI_THEME;
   return n;
 }
 
@@ -491,9 +490,6 @@ void game_input_ui(GameState *gs, InputEvent in)
           case MI_ENDLESS:                          /* chơi Vô tận mới (US5) */
             gs->play_mode = MODE_ENDLESS;
             game_start(gs);
-            break;
-          case MI_THEME:                            /* US6: cuộn theme (cosmetic), ở lại MENU */
-            gs->theme_id = (uint8_t)((gs->theme_id + 1u) % THEME_COUNT);
             break;
         }
       }

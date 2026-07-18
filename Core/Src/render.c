@@ -1,14 +1,22 @@
 #include "render.h"
 #include "gfx.h"
 #include "levels.h"   /* level_get → vẽ chướng ngại màn (T045) */
-#include "theme.h"    /* theme_get → màu theo chủ đề (T073/US6) */
 
 /* render — ánh xạ GameState → lệnh vẽ gfx (chỉ gọi gfx_*, KHÔNG chạm HAL — NT IV/V).
  * T024 (M2): vẽ HUD + sân + sâu, dispatch theo `mode`. M2 vẽ lại toàn khung mỗi tick
  * (chấp nhận được ở tốc snake, research §14); dirty-rect tối ưu ở T036+.
- * Bảng màu: theo `theme` (T073). T091: lá có hình thù (rừng=lá cây, sa mạc=cỏ lăn; vàng=đồng xu,
+ * Bảng màu Forest cố định (CLR_*). T091: lá có hình thù (lá cây có gân; vàng=đồng xu,
  * độc=đầu lâu, power-up=token chữ) + sâu phân khúc (đốt thụt có khe, đầu có mắt theo hướng) — ghép
- * fill_rect qua helper `px`. (Sprite chướng ngại theo theme còn để ngỏ — obstacle_sprite=NULL.) */
+ * fill_rect qua helper `px`. */
+
+/* Bảng màu Forest (RGB565) — bộ màu duy nhất sau khi gỡ hệ theme. */
+#define RGB565(r, g, b) ((uint16_t)((((r) & 0xF8u) << 8) | (((g) & 0xFCu) << 3) | ((b) >> 3)))
+#define CLR_BG        RGB565(11, 26, 11)     /* nền sân xanh thẫm   */
+#define CLR_HUD_BG    RGB565(20, 20, 35)     /* nền dải HUD         */
+#define CLR_TEXT      RGB565(235, 235, 235)  /* chữ HUD             */
+#define CLR_WORM_HEAD RGB565(230, 126, 0)
+#define CLR_WORM_BODY RGB565(255, 180, 0)
+#define CLR_OBSTACLE  RGB565(95, 95, 110)    /* đá xám              */
 
 /* Ô lưới (c,r) → pixel landscape: sân nằm DƯỚI dải HUD cao HUD_H. */
 static void cell_fill(int c, int r, uint16_t color)
@@ -49,8 +57,7 @@ void render_set_endless_best(uint32_t best) { s_endless_best = best; }
 
 static void draw_hud(const GameState *gs)
 {
-  const Theme *th = theme_get(gs->theme_id);
-  uint16_t bg = th->hud_bg;
+  uint16_t bg = CLR_HUD_BG;
   gfx_fill_rect(0, 0, SCREEN_W, HUD_H, bg);
 
   char line[48];           /* "SCORE <10>  ENDLESS  BEST <10>" + NUL → cần ~43 */
@@ -68,7 +75,7 @@ static void draw_hud(const GameState *gs)
     p += put_u32(line + p, (uint32_t)(gs->level_idx + 1));
   }
   line[p] = 0;
-  gfx_text(6, 8, line, th->text, bg, 1);
+  gfx_text(6, 8, line, CLR_TEXT, bg, 1);
 
   /* T054: power-up đang hiệu lực — chữ + giây còn lại, căn phải HUD. */
   static const char PU_CH[PU_KINDS] = { 'S', 'W', 'G', 'P' };  /* Speed/sloW/Ghost/Phase */
@@ -113,9 +120,6 @@ static uint16_t spr_color(char k)
     case 'L': return gfx_rgb565(130, 240, 130);  /* lá mặt sáng   */
     case 'V': return gfx_rgb565(28, 134, 52);    /* gân lá (đậm)  */
     case 'm': return gfx_rgb565(96, 64, 22);     /* cuống nâu     */
-    case 'T': return gfx_rgb565(196, 162, 96);   /* cát           */
-    case 'H': return gfx_rgb565(228, 202, 150);  /* cát sáng      */
-    case 'D': return gfx_rgb565(118, 84, 40);    /* nhánh khô     */
     case 'y': return gfx_rgb565(190, 150, 0);    /* viền vàng     */
     case 'Y': return gfx_rgb565(255, 215, 0);    /* vàng          */
     case 'W': return gfx_rgb565(255, 246, 178);  /* lóa sáng      */
@@ -148,12 +152,6 @@ static const char *const SPR_LEAF[16] = {
   "..oLLLVVVVGo....", "..oLLGVVGGGo....", "..oLGVGGVVo.....", "..oGVGGGoo......",
   "..omoooo........", "..m.............", ".m..............", "................",
 };
-static const char *const SPR_TUMBLE[16] = {
-  ".......D........", ".....DDTDD......", "...DTDD.DDTD....", "....D..D..D.....",
-  "..HD.HDTTD.DD...", ".TDD.DD.DD.DDT..", ".D..D..D..D..D..", "DTDT.HT.DT.DTTD.",
-  "..DT.DTTTT..T...", ".D..D..D..D..D..", "..TD.DD.D..DT...", "..D..DD..D..D...",
-  "....D..TT.D.....", ".....T.TDT......", "................", "................",
-};
 static const char *const SPR_GOLD[16] = {
   "................", "......yyy.......", "....yyYYYyy.....", "...yWWWYYYYy....",
   "..yWWWWYYYYYy...", "..yWWWWWYYYYy...", ".yYWWWWYYYYYYy..", ".yYYYWYYYYYYYy..",
@@ -167,7 +165,7 @@ static const char *const SPR_POISON[16] = {
   "......pppp......", "................", "................", "................",
 };
 
-/* Đổi độ sáng màu RGB565 theo tỉ lệ num/den (để dựng vát sáng/tối từ màu theme). */
+/* Đổi độ sáng màu RGB565 theo tỉ lệ num/den (để dựng vát sáng/tối từ màu gốc). */
 static uint16_t shade565(uint16_t col, int num, int den)
 {
   int r = (col >> 11) & 0x1F, g = (col >> 5) & 0x3F, b = col & 0x1F;
@@ -178,7 +176,7 @@ static uint16_t shade565(uint16_t col, int num, int den)
   return (uint16_t)((r << 11) | (g << 5) | b);
 }
 
-/* Chướng ngại: khối đá VÁT 3D suy từ màu theme — mép trên-trái sáng, dưới-phải tối,
+/* Chướng ngại: khối đá VÁT 3D suy từ màu nền đá — mép trên-trái sáng, dưới-phải tối,
  * thêm vết nứt chéo + sạn (khớp tools/gen_sprites_preview.py). */
 static void draw_obstacle(int c, int r, uint16_t base)
 {
@@ -261,24 +259,20 @@ static unsigned conn_bit(int dc, int dr)
 
 static void draw_playing(const GameState *gs)
 {
-  const Theme *th = theme_get(gs->theme_id);   /* T073: màu theo theme hiện hành */
-  int desert = (gs->theme_id == THEME_DESERT);
-
   /* Nền sân. */
-  gfx_fill_rect(0, HUD_H, SCREEN_W, SCREEN_H - HUD_H, th->bg);
+  gfx_fill_rect(0, HUD_H, SCREEN_W, SCREEN_H - HUD_H, CLR_BG);
 
-  /* Chướng ngại của màn (T045/T073) — đá vát 3D theo màu theme. */
+  /* Chướng ngại của màn (T045) — đá vát 3D. */
   const Level *lv = level_get(gs->level_idx);
   if (lv != 0 && lv->obstacles != 0) {
     for (int r = 0; r < ROWS; r++)
       for (int c = 0; c < COLS; c++)
-        if (lv->obstacles[r][c]) draw_obstacle(c, r, th->obstacle);
+        if (lv->obstacles[r][c]) draw_obstacle(c, r, CLR_OBSTACLE);
   }
 
-  /* T091: lá thường — sprite theo theme: rừng = lá cây (có gân), sa mạc = cỏ lăn khô. */
+  /* T091: lá thường — sprite lá cây (có gân). */
   if (gs->leaf_normal.type != LEAF_NONE) {
-    int lc = gs->leaf_normal.pos.c, lr = gs->leaf_normal.pos.r;
-    draw_sprite(lc, lr, desert ? SPR_TUMBLE : SPR_LEAF);
+    draw_sprite(gs->leaf_normal.pos.c, gs->leaf_normal.pos.r, SPR_LEAF);
   }
 
   /* T091: lá độc — đầu lâu tím. */
@@ -297,7 +291,7 @@ static void draw_playing(const GameState *gs)
 
   /* T054/T091: power-up — token chữ S/W/G/P theo loại. */
   if (gs->leaf_pu.type == LEAF_POWERUP) {
-    draw_powerup_token(gs->leaf_pu.pos.c, gs->leaf_pu.pos.r, gs->leaf_pu.pu_type, th->bg);
+    draw_powerup_token(gs->leaf_pu.pos.c, gs->leaf_pu.pos.r, gs->leaf_pu.pu_type, CLR_BG);
   }
 
   /* T091: sâu liền mạch — mỗi đốt nối sang ô kề (đầu + đuôi trong chuỗi), bo góc,
@@ -315,8 +309,8 @@ static void draw_playing(const GameState *gs)
       Cell nx = w->body[(w->head_idx + k + 1) % WORM_CAP];
       conn |= conn_bit(nx.c - sg.c, nx.r - sg.r);
     }
-    if (k == 0) draw_worm_body(sg.c, sg.r, th->worm_head, th->bg, conn, 1, w->dir);
-    else        draw_worm_body(sg.c, sg.r, th->worm_body, th->bg, conn, 0, w->dir);
+    if (k == 0) draw_worm_body(sg.c, sg.r, CLR_WORM_HEAD, CLR_BG, conn, 1, w->dir);
+    else        draw_worm_body(sg.c, sg.r, CLR_WORM_BODY, CLR_BG, conn, 0, w->dir);
   }
 }
 
@@ -390,21 +384,14 @@ static void draw_menu_item(int cx, int y, int w, int h, const char *label, int l
   }
 }
 
-/* T083: dựng nhãn 1 mục MENU vào buf (kết \0); trả độ dài. THEME hiện tên theme hiện hành. */
-static int menu_label(const GameState *gs, MenuItemId id, char *buf)
+/* T083: dựng nhãn 1 mục MENU vào buf (kết \0); trả độ dài. */
+static int menu_label(MenuItemId id, char *buf)
 {
   int n = 0;
-  if (id == MI_THEME) {
-    const char *p = "THEME:";
-    while (*p) buf[n++] = *p++;
-    const char *nm = theme_get(gs->theme_id)->name;
-    while (*nm && n < 22) buf[n++] = *nm++;
-  } else {
-    const char *s = (id == MI_CONTINUE_LEVEL)   ? "CONTINUE LV"   :
-                    (id == MI_CONTINUE_ENDLESS) ? "CONTINUE ENDL" :
-                    (id == MI_START)            ? "START"         : "ENDLESS";
-    while (s[n] && n < 22) { buf[n] = s[n]; n++; }
-  }
+  const char *s = (id == MI_CONTINUE_LEVEL)   ? "CONTINUE LV"   :
+                  (id == MI_CONTINUE_ENDLESS) ? "CONTINUE ENDL" :
+                  (id == MI_START)            ? "START"         : "ENDLESS";
+  while (s[n] && n < 22) { buf[n] = s[n]; n++; }
   buf[n] = 0;
   return n;
 }
@@ -433,7 +420,7 @@ static void draw_menu(const GameState *gs)
 
   for (int i = 0; i < n; i++) {
     char buf[24];
-    int len = menu_label(gs, items[i], buf);
+    int len = menu_label(items[i], buf);
     draw_menu_item(SCREEN_W / 2, y0 + i * S, 200, H, buf, len, gs->menu_sel == (uint8_t)i, 0);
   }
 

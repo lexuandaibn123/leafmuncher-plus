@@ -36,7 +36,7 @@ void store_pd_defaults(PersistData *pd)
 {
   pd->magic = STORE_MAGIC;
   pd->version = STORE_VERSION;
-  pd->theme_id = (uint16_t)THEME_FOREST;
+  pd->_rsv = 0u;
   pd->endless_high = 0u;
   pd->crc = store_crc32(pd, pd_payload_len());
 }
