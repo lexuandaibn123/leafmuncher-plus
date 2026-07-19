@@ -14,6 +14,10 @@ build/
 # ───── Host unit-test binaries (test/) ─────
 test/test_game
 test/test_rng
+
+# ───── PC play harness (test/build_play.*) ─────
+host_save.bin
+play_win_*.raw
 # (mọi binary test_* không đuôi cũng đã khớp *.exe ở trên)
 
 # ───── STM32CubeIDE (nếu import vào IDE) ─────
