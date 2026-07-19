@@ -1,0 +1,73 @@
+<mxfile host="app.diagrams.net" agent="leafmuncher-plus" version="24.0.0">
+  <diagram id="sw-arch" name="Kien truc phan mem">
+    <mxGraphModel dx="1000" dy="650" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1120" pageHeight="640" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="3.1. Kiến trúc phần mềm — LeafMuncher+ (3 tầng)" style="text;html=1;align=center;verticalAlign=middle;fontStyle=1;fontSize=17;" vertex="1" parent="1">
+          <mxGeometry x="260" y="20" width="600" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="Nguyên tắc: tầng logic trò chơi thuần tuý (không gọi HAL/CMSIS/FreeRTOS) tách hoàn toàn khỏi tầng phần cứng&#10;→ luật chơi biên dịch &amp; kiểm thử bằng gcc trên PC; sinh lại code CubeMX không đụng tới code đã viết." style="text;html=1;align=center;verticalAlign=middle;fontSize=11;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="120" y="52" width="880" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- ============ TANG TICH HOP ============ -->
+        <mxCell id="integ" value="TẦNG TÍCH HỢP (FreeRTOS) — apptasks.c&#10;InputTask (50 Hz)  →  queue  →  GameTask (tick)  →  snapshot + semaphore  →  RenderTask&#10;+ điều phối lưu/đọc Flash" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;fontSize=12;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="140" y="120" width="840" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- ============ COT TRAI: PHAN CUNG (nhap) ============ -->
+        <mxCell id="hw_in" value="TẦNG PHẦN CỨNG (nhập)" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=12;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="140" y="290" width="240" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="input_c" value="input.c  (ADC — joystick)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="hw_in">
+          <mxGeometry x="20" y="45" width="200" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="store_c" value="store.c  (Flash — lưu trữ)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="hw_in">
+          <mxGeometry x="20" y="100" width="200" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- ============ COT GIUA: LOGIC THUAN ============ -->
+        <mxCell id="logic" value="TẦNG LOGIC THUẦN&#10;(không gọi HAL/CMSIS/FreeRTOS)" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=12;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="440" y="290" width="240" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="game_c" value="game.c  (luật chơi / FSM)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;" vertex="1" parent="logic">
+          <mxGeometry x="20" y="60" width="200" height="34" as="geometry" />
+        </mxCell>
+        <mxCell id="levels_c" value="levels.c  (màn / độ khó)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;" vertex="1" parent="logic">
+          <mxGeometry x="20" y="104" width="200" height="34" as="geometry" />
+        </mxCell>
+        <mxCell id="rng_c" value="rng.c  (số ngẫu nhiên)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;" vertex="1" parent="logic">
+          <mxGeometry x="20" y="148" width="200" height="34" as="geometry" />
+        </mxCell>
+        <mxCell id="codec_c" value="store_codec.c  (mã hoá dữ liệu)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;" vertex="1" parent="logic">
+          <mxGeometry x="20" y="192" width="200" height="34" as="geometry" />
+        </mxCell>
+
+        <!-- ============ COT PHAI: PHAN CUNG (xuat) ============ -->
+        <mxCell id="hw_out" value="TẦNG PHẦN CỨNG (xuất)" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=12;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="740" y="290" width="240" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="gfx_c" value="gfx.c&#10;(SDRAM / LTDC / DMA2D / SPI)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="hw_out">
+          <mxGeometry x="20" y="45" width="200" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="render_c" value="render.c  (vẽ khung hình)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="hw_out">
+          <mxGeometry x="20" y="105" width="200" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- ============ EDGES ============ -->
+        <mxCell id="e_left" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeWidth=2;" edge="1" parent="1" source="integ" target="hw_in">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_mid" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeWidth=2;" edge="1" parent="1" source="integ" target="logic">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_right" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;strokeWidth=2;" edge="1" parent="1" source="integ" target="hw_out">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

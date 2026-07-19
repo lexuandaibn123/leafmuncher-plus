@@ -1,17 +1,15 @@
 #ifndef RENDER_H
 #define RENDER_H
 
-/* render — ánh xạ GameState → lệnh vẽ gfx (dirty-rect khi PLAYING, vẽ đủ khi đổi trạng thái).
- * Bảng màu Forest cố định (CLR_* trong render.c). Hợp đồng: contracts/render-gfx.md.
- * Skeleton Phase 1 — hiện thực ở Phase 2+ (T024, T036…). */
+/* Ánh xạ trạng thái GameState thành các lệnh vẽ đồ họa.
+ * Bảng màu cố định lấy theo chủ đề Forest. */
 
 #include "game.h"
 
-void render_force_full(const GameState *gs);             /* vẽ lại toàn khung (khi đổi state) */
-void render_frame(const GameState *gs, GameEvents ev);   /* vẽ theo gs->mode mỗi khung */
+void render_force_full(const GameState *gs);
+void render_frame(const GameState *gs, GameEvents ev);
 
-/* T074/US5: điểm cao Vô tận để HUD hiển thị "BEST n". `endless_high` thuộc `store` (không nằm trong
- * GameState — data-model §2.7) → tasks set giá trị này; mặc định 0. */
+/* Cập nhật điểm cao nhất của chế độ vô tận để hiển thị lên màn hình. */
 void render_set_endless_best(uint32_t best);
 
 #endif /* RENDER_H */

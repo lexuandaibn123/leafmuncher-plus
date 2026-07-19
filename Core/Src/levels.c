@@ -1,15 +1,14 @@
 #include "levels.h"
 
-/* Bảng dữ liệu 5 màn (research §3,§9). KHÔNG gọi HAL (Nguyên tắc II).
- * Bitmap chướng ngại [ROWS=13][COLS=20], 1 = chướng ngại. Bất biến (contracts/levels.md):
+/* Bảng dữ liệu 5 màn.
+ * Bitmap chướng ngại [ROWS=13][COLS=20], 1 = chướng ngại. Bất biến:
  *   - tâm sân (hàng 6, cột 8/9/10 = chỗ sâu khởi đầu) + lân cận LUÔN trống;
  *   - step_ms giảm dần & ≥ STEP_MS_MIN; đủ ô trống cho sâu + ≥1 ô sinh lá.
- * STEP_MS[]/TARGET_LEAVES[] vẫn để (game.h extern, test T019 dùng); Level lặp lại
- * cùng giá trị (test_levels kiểm đồng nhất). */
+ */
 const uint16_t STEP_MS[LEVELS]       = { 180, 155, 130, 110, 95 };
 const uint16_t TARGET_LEAVES[LEVELS] = {   6,   8,  10,  12, 14 };
 
-/* ── Màn 0 "Khởi động": trống ───────────────────────────────────────────── */
+/* Màn 0: trống */
 static const uint8_t OBS0[ROWS][COLS] = {
   {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
   {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
@@ -26,7 +25,7 @@ static const uint8_t OBS0[ROWS][COLS] = {
   {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
 };
 
-/* ── Màn 1 "Hai thanh": 2 thanh ngang (hàng 3 & 9, cột 5..14) ───────────── */
+/* Màn 1: 2 thanh ngang */
 static const uint8_t OBS1[ROWS][COLS] = {
   {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
   {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
@@ -43,7 +42,7 @@ static const uint8_t OBS1[ROWS][COLS] = {
   {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
 };
 
-/* ── Màn 2 "Chữ thập": cột 10 (rỗng giữa) + thanh ngang hàng 6 (rỗng giữa) ─ */
+/* Màn 2: Chữ thập */
 static const uint8_t OBS2[ROWS][COLS] = {
   {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
   {0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0},
@@ -60,7 +59,7 @@ static const uint8_t OBS2[ROWS][COLS] = {
   {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
 };
 
-/* ── Màn 3 "Bốn góc": 4 khối 3×3 ở góc ──────────────────────────────────── */
+/* Màn 3: Bốn góc */
 static const uint8_t OBS3[ROWS][COLS] = {
   {1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1},
   {1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1},
@@ -77,7 +76,7 @@ static const uint8_t OBS3[ROWS][COLS] = {
   {1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1},
 };
 
-/* ── Màn 4 "Mê cung thưa": 2 tường dọc (cột 4 & 15, hở hàng 6) + stub hàng 6 ─ */
+/* Màn 4: Mê cung thưa */
 static const uint8_t OBS4[ROWS][COLS] = {
   {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
   {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
@@ -105,7 +104,7 @@ static const Level LEVELS_TBL[LEVEL_COUNT] = {
 const Level *level_get(uint8_t idx)
 {
   if (idx >= LEVEL_COUNT) {
-    return 0;           /* ngoài phạm vi → NULL (game coi như đã WIN) */
+    return 0;
   }
   return &LEVELS_TBL[idx];
 }

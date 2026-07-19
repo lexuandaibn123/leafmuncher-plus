@@ -4,7 +4,7 @@ Game **"sâu ăn lá"** lấy cảm hứng từ rắn săn mồi Nokia, làm b�
 kit **STM32F429I-DISC1** + **joystick analog**. Đồ án môn học Hệ thống nhúng.
 
 > Điều khiển con sâu trên màn TFT màu, ăn lá để dài ra và ghi điểm, né tường/chướng ngại và
-> chính thân mình — với nhiều loại lá, power-up và level kiểu "Plus".
+> chính thân mình — với nhiều loại lá, power-up và các màn chơi nâng cao.
 
 ---
 
@@ -16,6 +16,7 @@ kit **STM32F429I-DISC1** + **joystick analog**. Đồ án môn học Hệ thốn
 - 🧱 **Chướng ngại vật & nhiều level**, tốc độ tăng dần.
 - 🖥️ Đồ hoạ **không nhấp nháy** (framebuffer SDRAM + DMA2D + double-buffer).
 - 🧭 Menu / Pause / Game Over điều hướng bằng joystick.
+- 💾 LƯU TRỮ (Flash): Tự động lưu điểm cao nhất ở chế độ vô tận và tính năng lưu/tiếp tục ván chơi đang dở.
 
 ## 🔧 Phần cứng
 
@@ -27,12 +28,16 @@ kit **STM32F429I-DISC1** + **joystick analog**. Đồ án môn học Hệ thốn
 
 **Đấu nối joystick:** `VRx→PA5`, `VRy→PC3`, `SW→PB7`, `VCC→3V3`, `GND→GND`.
 
-## 🛠️ Tech stack
+## 🛠️ Công nghệ sử dụng
 
-STM32CubeMX (cấu hình → xuất **Makefile**) · **FreeRTOS** (CMSIS-RTOS v2) ·
-HAL · build bằng **arm-none-eabi-gcc + make** (bundled trong STM32CubeIDE) · nạp qua ST-LINK.
+- STM32CubeMX (cấu hình phần cứng)
+- **FreeRTOS** (CMSIS-RTOS v2) quản lý đa luồng.
+- Giao tiếp ngoại vi thông qua thư viện HAL.
+- Build system: **arm-none-eabi-gcc + make**
 
-## 🚀 Build & nạp
+## 🚀 Hướng dẫn biên dịch & Nạp code
+
+Dự án có sẵn script `build.sh` bọc các lệnh cơ bản:
 
 ```bash
 ./build.sh          # biên dịch -> build/leafmuncher-plus.elf
@@ -40,35 +45,25 @@ HAL · build bằng **arm-none-eabi-gcc + make** (bundled trong STM32CubeIDE) ·
 ./build.sh clean    # xoá build/
 ```
 
-Không cần cài thêm toolchain — `build.sh` tự dùng arm-gcc/make/STM32_Programmer_CLI có sẵn
-trong STM32CubeIDE. Chi tiết: [docs/setup/02-build-flash.md](docs/setup/02-build-flash.md).
-Tạo lại base project từ CubeMX: [docs/setup/01-cubemx-codegen.md](docs/setup/01-cubemx-codegen.md).
+Script sẽ tự động tìm kiếm đường dẫn của `arm-none-eabi-gcc` nằm trong STM32CubeIDE.
+Chi tiết xem thêm tại: [docs/setup/02-build-flash.md](docs/setup/02-build-flash.md).
 
-## 📁 Cấu trúc
+## 📁 Cấu trúc thư mục
 
 ```
-leafmuncher-plus.ioc   # cấu hình CubeMX (sửa peripheral ở đây rồi Generate)
-build.sh               # wrapper build/flash
-Core/                  # code (HAL init do CubeMX quản lý + module game tự viết)
-docs/setup/            # hướng dẫn CubeMX & build
-specs/                 # đặc tả tính năng (Spec Kit)
-.specify/              # constitution + templates (Spec Kit)
-AGENTS.md              # hướng dẫn cho AI coding agent
+leafmuncher-plus.ioc   # file cấu hình STM32CubeMX
+build.sh               # script build tự động
+Core/                  # mã nguồn chính (Driver, Logic game, Đồ họa)
+docs/                  # tài liệu hướng dẫn và báo cáo
 ```
 
-Module game: `gfx` (vẽ) · `input` (joystick) · `game` (logic) · `render` · `rng` · `tasks` (FreeRTOS).
+Các module game tự phát triển (nằm trong `Core/Src` và `Core/Inc`):
+- `gfx`: Xử lý vẽ đồ họa (layer LCD, màu sắc, hình khối)
+- `input`: Đọc tín hiệu ADC từ Joystick và xử lý bộ lọc (debounce).
+- `game`: Chứa toàn bộ logic thuần của game (vị trí, va chạm, tính điểm).
+- `render`: Chuyển đổi trạng thái game thành các lệnh vẽ đồ họa.
+- `store`: Đọc/Ghi dữ liệu điểm và trạng thái vào bộ nhớ Flash.
+- `apptasks`: Quản lý hệ thống task của RTOS.
 
-## 📐 Quy trình phát triển
-
-Dự án dùng **Spec-Driven Development** với [Spec Kit](https://github.com/github/spec-kit):
-`constitution → specify → plan → tasks → implement`. Lộ trình tăng dần **M1→M7** (luôn có bản chạy được),
-ưu tiên hoàn thiện "rắn cổ điển" trước rồi thêm chướng ngại/lá/power-up.
-
-- 📜 Luật dự án: [`.specify/memory/constitution.md`](.specify/memory/constitution.md)
-- 📋 Spec: [`specs/001-leafmuncher-plus-game/spec.md`](specs/001-leafmuncher-plus-game/spec.md)
-
-## 📌 Trạng thái
-
-- ✅ Base project (CubeMX + Makefile + FreeRTOS), build sạch
-- ✅ Constitution v1.0.0 + Spec hoàn chỉnh
-- ⏭️ Tiếp theo: `/speckit-plan` → `/speckit-tasks` → hiện thực M1
+## 📌 Trạng thái đồ án
+- ✅ Đã hoàn thiện toàn bộ tính năng và báo cáo.

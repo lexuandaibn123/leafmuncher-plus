@@ -1,12 +1,10 @@
 #include "rng.h"
 
-/* rng — PRNG thuần xorshift32 (Marsaglia). KHÔNG gọi HAL (Nguyên tắc II).
- * Hợp đồng: research §13. T007 (M1).
- *
- * State được giữ ngoài (con trỏ) nên hàm thuần, dễ test xác định trên host.
+/* Bộ sinh số ngẫu nhiên PRNG
+ * State được giữ ngoài (con trỏ) nên hàm thuần, dễ test.
  * Lưu ý: xorshift32 KHÔNG được mang state = 0 (sẽ kẹt ở 0 mãi). */
 
-/* Hằng "vá" khi seed = 0 — số lẻ bất kỳ khác 0 (golden-ratio 32-bit). */
+/* Hằng "vá" khi seed = 0 */
 #define RNG_NONZERO 0x9E3779B9u
 
 void rng_seed(uint32_t *state, uint32_t seed) {
@@ -15,7 +13,7 @@ void rng_seed(uint32_t *state, uint32_t seed) {
 
 uint32_t rng_next(uint32_t *state) {
   uint32_t x = *state;
-  /* Bộ ba dịch (13, 17, 5) — chu kỳ tối đa 2^32 - 1. */
+  /* Bộ ba dịch (13, 17, 5) */
   x ^= x << 13;
   x ^= x >> 17;
   x ^= x << 5;
@@ -25,9 +23,9 @@ uint32_t rng_next(uint32_t *state) {
 
 uint32_t rng_range(uint32_t *state, uint32_t n) {
   if (n == 0u) {
-    return 0u;            /* tránh chia 0; quy ước [0,0) = {0} */
+    return 0u;
   }
-  /* Rejection sampling để loại bias modulo (n nhỏ ≤ GRID_CELLS, gần như không lặp). */
+  /* Rejection sampling để loại bias modulo. */
   uint32_t limit = UINT32_MAX - (UINT32_MAX % n);
   uint32_t r;
   do {

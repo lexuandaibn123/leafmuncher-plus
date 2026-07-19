@@ -1,0 +1,100 @@
+<mxfile host="app.diagrams.net" agent="leafmuncher-plus" version="24.0.0">
+  <diagram id="hw-arch" name="Dau noi phan cung">
+    <mxGraphModel dx="1000" dy="650" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1150" pageHeight="560" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="Sơ đồ đấu nối phần cứng — LeafMuncher+ (STM32F429I-DISC1)" style="text;html=1;align=center;verticalAlign=middle;fontStyle=1;fontSize=17;" vertex="1" parent="1">
+          <mxGeometry x="280" y="15" width="620" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- ============ MINI-USB ============ -->
+        <mxCell id="usb" value="Cáp Mini-USB — nguồn + nạp/gỡ lỗi (ST-LINK tích hợp)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="130" y="70" width="300" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- ============ BO DISC1 ============ -->
+        <mxCell id="board" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#4d7a3a;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="130" y="150" width="360" height="330" as="geometry" />
+        </mxCell>
+        <mxCell id="board_lbl" value="KIT STM32F429I-DISC1&#10;(vi điều khiển + SDRAM + ST-LINK trên bo)" style="text;html=1;align=center;fontStyle=1;fontSize=12;" vertex="1" parent="board">
+          <mxGeometry x="20" y="10" width="240" height="34" as="geometry" />
+        </mxCell>
+
+        <!-- Man hinh TFT tren mat bo -->
+        <mxCell id="tft" value="MÀN HÌNH TFT 2.4&quot;&#10;320 × 240 · ILI9341&#10;(tích hợp trên bo)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#2b2540;strokeColor=#9673a6;fontColor=#ffffff;fontStyle=1;fontSize=12;verticalAlign=middle;" vertex="1" parent="board">
+          <mxGeometry x="35" y="60" width="185" height="240" as="geometry" />
+        </mxCell>
+
+        <!-- ===== 5 chan noi tren bo (canh phai) ===== -->
+        <mxCell id="k_3v3" value="3V3" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;fontSize=11;" vertex="1" parent="board">
+          <mxGeometry x="250" y="60" width="90" height="32" as="geometry" />
+        </mxCell>
+        <mxCell id="k_gnd" value="GND" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;fontSize=11;" vertex="1" parent="board">
+          <mxGeometry x="250" y="105" width="90" height="32" as="geometry" />
+        </mxCell>
+        <mxCell id="k_pa5" value="PA5" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=11;" vertex="1" parent="board">
+          <mxGeometry x="250" y="150" width="90" height="32" as="geometry" />
+        </mxCell>
+        <mxCell id="k_pc3" value="PC3" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=11;" vertex="1" parent="board">
+          <mxGeometry x="250" y="195" width="90" height="32" as="geometry" />
+        </mxCell>
+        <mxCell id="k_pb7" value="PB7" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=11;" vertex="1" parent="board">
+          <mxGeometry x="250" y="240" width="90" height="32" as="geometry" />
+        </mxCell>
+
+        <!-- ============ MODULE JOYSTICK ============ -->
+        <mxCell id="joy" value="Module Joystick&#10;2 trục analog + nút bấm" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;spacing=6;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="720" y="170" width="230" height="300" as="geometry" />
+        </mxCell>
+        <mxCell id="knob" value="cần" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d79b00;strokeColor=#9a7000;fontColor=#ffffff;fontStyle=1;" vertex="1" parent="joy">
+          <mxGeometry x="145" y="45" width="65" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="j_5v" value="+5V" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="joy">
+          <mxGeometry x="10" y="70" width="110" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="j_gnd" value="GND" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;" vertex="1" parent="joy">
+          <mxGeometry x="10" y="115" width="110" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="j_vrx" value="VRx (trục X)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="joy">
+          <mxGeometry x="10" y="160" width="110" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="j_vry" value="VRy (trục Y)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="joy">
+          <mxGeometry x="10" y="205" width="110" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="j_sw" value="SW (nút cần)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="joy">
+          <mxGeometry x="10" y="250" width="110" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- ============ 5 DAY NOI ============ -->
+        <mxCell id="w_5v" value="nguồn 3.3V" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;strokeColor=#d79b00;strokeWidth=2;fontSize=10;" edge="1" parent="1" source="j_5v" target="k_3v3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="w_gnd" value="mát chung" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;strokeColor=#666666;strokeWidth=2;fontSize=10;" edge="1" parent="1" source="j_gnd" target="k_gnd">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="w_vrx" value="trục X (ADC)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#6c8ebf;strokeWidth=2;fontSize=10;" edge="1" parent="1" source="j_vrx" target="k_pa5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="w_vry" value="trục Y (ADC)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#6c8ebf;strokeWidth=2;fontSize=10;" edge="1" parent="1" source="j_vry" target="k_pc3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="w_sw" value="nút nhấn (GPIO)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#82b366;strokeWidth=2;fontSize=10;" edge="1" parent="1" source="j_sw" target="k_pb7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ============ USB -> bo ============ -->
+        <mxCell id="w_usb" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeColor=#b85450;strokeWidth=2;" edge="1" parent="1" source="usb" target="board">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ============ Ghi chu ============ -->
+        <mxCell id="note" value="• Cấp 3V3, không cấp 5V (ADC chỉ đo 0–3.3V).&#10;• Nút SW: thả = mức 1, nhấn = mức 0 (điện trở kéo lên có sẵn trong STM32).&#10;• Nối bằng 5 dây Dupont cái–cái." style="text;html=1;align=left;verticalAlign=top;fontSize=11;spacing=4;fillColor=#ffffff;strokeColor=#cccccc;" vertex="1" parent="1">
+          <mxGeometry x="130" y="500" width="600" height="60" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

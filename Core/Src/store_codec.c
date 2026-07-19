@@ -1,11 +1,8 @@
 #include "store.h"
 
-/* store_codec — phần THUẦN của module store: CRC32 + validate + defaults.
- * KHÔNG chạm HAL/Flash → biên dịch & host-test trên gcc (test_store.c, SC-006).
- * store.c (chạm Flash) gọi các hàm này. Hợp đồng: contracts/store.md. */
+/* Mã hoá/giải mã và kiểm tra CRC32 cho dữ liệu lưu trữ. */
 
-/* CRC32 chuẩn (poly phản chiếu 0xEDB88320, init 0xFFFFFFFF, xorout 0xFFFFFFFF) — bitwise,
- * không bảng (record chỉ 12 byte, tốc độ không quan trọng; nhỏ gọn). */
+/* CRC32 chuẩn (poly phản chiếu 0xEDB88320) */
 uint32_t store_crc32(const void *data, uint32_t len)
 {
   const uint8_t *p = (const uint8_t *)data;
@@ -19,7 +16,6 @@ uint32_t store_crc32(const void *data, uint32_t len)
   return crc ^ 0xFFFFFFFFu;
 }
 
-/* CRC phủ mọi field trừ chính `crc` (nằm cuối struct). */
 static uint32_t pd_payload_len(void)
 {
   return (uint32_t)(sizeof(PersistData) - sizeof(((PersistData *)0)->crc));
@@ -28,7 +24,7 @@ static uint32_t pd_payload_len(void)
 bool store_pd_valid(const PersistData *pd)
 {
   if (pd->magic != STORE_MAGIC) return false;
-  if (pd->version > STORE_VERSION) return false;          /* schema tương lai → bỏ */
+  if (pd->version > STORE_VERSION) return false;
   return pd->crc == store_crc32(pd, pd_payload_len());
 }
 
@@ -41,8 +37,6 @@ void store_pd_defaults(PersistData *pd)
   pd->crc = store_crc32(pd, pd_payload_len());
 }
 
-/* Ô lưu ván (US7): cấu trúc nguyên vẹn = version khớp + crc khớp. Cờ `valid` (có ván hay không)
- * xét riêng ở store_has_save. Flash trống (0xFF) → version=0xFFFF ≠ SAVE_VERSION → bỏ (FR-032). */
 bool store_sg_valid(const SavedGame *sg)
 {
   if (sg->version != SAVE_VERSION) return false;

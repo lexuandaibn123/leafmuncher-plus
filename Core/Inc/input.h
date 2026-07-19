@@ -1,15 +1,14 @@
 #ifndef INPUT_H
 #define INPUT_H
 
-/* input — đọc joystick analog (ADC1+DMA) + nút (PB7 JOY_SW, PA0 B1) → InputEvent.
- * Lớp driver — chạm HAL. Hiệu chỉnh center + deadzone + trục trội/hysteresis + debounce.
- * Hợp đồng: contracts/input.md. Hiện thực T013–T015. */
+/* Đọc tín hiệu joystick analog (ADC1+DMA) và nút bấm.
+ * Hiệu chỉnh vị trí trung tâm, vùng nhiễu (deadzone), và chống dội nút. */
 
 #include <stdint.h>
-#include "game.h"   /* InputEvent, Dir */
+#include "game.h"
 
-void       input_init(void);     /* bắt đầu ADC1 DMA + hiệu chỉnh center (16 mẫu/trục) */
-InputEvent input_poll(void);     /* gọi @50Hz trong InputTask → sự kiện mới nhất */
-uint32_t   input_entropy(void);  /* LSB nhiễu ADC tích luỹ — góp seed RNG (research §13) */
+void       input_init(void);
+InputEvent input_poll(void);
+uint32_t   input_entropy(void);  /* Dùng nhiễu ADC để khởi tạo seed PRNG */
 
 #endif /* INPUT_H */

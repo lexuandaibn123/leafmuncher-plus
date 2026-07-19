@@ -1,8 +1,7 @@
 #ifndef FONT8X16_H
 #define FONT8X16_H
 
-/* Font bitmap 8×16 (MSB = cột trái), bảng cho ASCII in được 0x20..0x7F.
- * Sinh tự động từ tools/genfont.c (glyph dạng ASCII-art). Dùng bởi gfx_text (T010). */
+/* Font bitmap 8x16 (MSB = cột trái), bảng cho ASCII in được 0x20..0x7F. */
 
 #include <stdint.h>
 

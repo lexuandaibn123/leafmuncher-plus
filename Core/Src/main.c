@@ -34,9 +34,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "gfx.h"      /* gfx_init() trước scheduler */
-#include "input.h"    /* input_init() trước scheduler */
-#include "apptasks.h" /* timebase_start() (T017) — tasks_start() gọi từ freertos.c (T025) */
+#include "gfx.h"
+#include "input.h"
+#include "apptasks.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -113,9 +113,7 @@ int main(void)
   MX_USART1_UART_Init();
   MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
-  /* M2: khởi tạo phần cứng (đồ hoạ + input + đồng hồ ms) TRƯỚC khi trao quyền cho
-   * scheduler. 3 task game (Input/Game/Render) tạo trong tasks_start() — gọi từ
-   * freertos.c (T025). KHÔNG vòng lặp ở đây nữa: phải tới được osKernelStart(). */
+  /* Khởi tạo phần cứng đồ hoạ, input và timer trước khi scheduler bắt đầu */
   HAL_GPIO_WritePin(GPIOG, LD3_Pin | LD4_Pin, GPIO_PIN_RESET);
   gfx_init();
   input_init();
