@@ -7,7 +7,7 @@
 #include "render.h"
 #include "gfx.h"
 #include "rng.h"          /* T061 — re-seed RNG tại sườn nhấn Start */
-#include "store.h"        /* T076 — cài đặt bền vững (theme + điểm cao Vô tận) qua Flash */
+#include "store.h"        /* T076 — cài đặt bền vững (điểm cao Vô tận) qua Flash */
 
 /* apptasks — lớp tích hợp HAL + vòng đời FreeRTOS.
  *   T016 — LED helper + safe-stop
@@ -186,11 +186,6 @@ static void GameTask(void *argument)
     } else if (mode_before == ST_MENU && s_game.mode == ST_PLAYING) {
       /* Rời menu vào ván MỚI (Start, KHÔNG phải Tiếp tục): không đến từ ô lưu. */
       s_game.from_save = 0u;
-      /* Nếu theme đã đổi so với Flash thì lưu lại theme. */
-      if (store_get()->theme_id != s_game.theme_id) {
-        store_set_theme((ThemeId)s_game.theme_id);
-        (void)store_commit();
-      }
     }
 
     /* T082: kết thúc ván (GAME_OVER/WIN) → cập nhật điểm cao Vô tận + xóa ô lưu, GHI FLASH 1 LẦN. */
@@ -267,10 +262,9 @@ void tasks_start(void)
   uint32_t seed = input_entropy() ^ (uint32_t)__HAL_TIM_GET_COUNTER(&htim7);
   game_init(&s_game, seed);     /* T061: boot dừng ở MENU (FR-014), KHÔNG vào PLAYING ngay */
 
-  /* T076: nạp cài đặt bền vững từ Flash → theme đã chọn cho render + điểm cao Vô tận cho HUD.
-   * Flash trống/hỏng → store_init nạp mặc định (theme=FOREST, high=0), không crash (FR-027). */
+  /* T076: nạp cài đặt bền vững từ Flash → điểm cao Vô tận cho HUD.
+   * Flash trống/hỏng → store_init nạp mặc định (high=0), không crash (FR-027). */
   store_init();
-  s_game.theme_id = (uint8_t)store_get()->theme_id;
   render_set_endless_best(store_get()->endless_high);
   sync_save_flags();           /* T082: MENU hiển thị "Tiếp tục" nếu Flash có ô lưu hợp lệ */
 

@@ -53,11 +53,6 @@ const PersistData *store_get(void)
   return &s_settings;
 }
 
-void store_set_theme(ThemeId id)
-{
-  s_settings.theme_id = (uint16_t)id;
-}
-
 void store_set_endless_high(uint32_t s)
 {
   if (s > s_settings.endless_high) {
@@ -110,8 +105,7 @@ static bool flash_write_all(void)
   /* Xác nhận cài đặt ghi đúng (đọc lại Flash). */
   if (ok) {
     const PersistData *f = (const PersistData *)(STORE_ADDR + OFF_SETTINGS);
-    ok = store_pd_valid(f) && (f->theme_id == s_settings.theme_id) &&
-         (f->endless_high == s_settings.endless_high);
+    ok = store_pd_valid(f) && (f->endless_high == s_settings.endless_high);
   }
   return ok;
 }
